@@ -1,0 +1,1 @@
+/home/dsporykhin/.platformio/packages/toolchain-atmelavr/bin/avr-g++  -g  -rdynamic CMakeFiles/AT328.dir/src/main.cpp.o  -o AT328 

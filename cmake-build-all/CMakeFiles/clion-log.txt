@@ -1,0 +1,4 @@
+/home/dsporykhin/Applications/clion-2017.2.4/bin/cmake/bin/cmake -DCMAKE_BUILD_TYPE=All -G "CodeBlocks - Unix Makefiles" /home/dsporykhin/projects/home/cpp/AT328
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/dsporykhin/projects/home/cpp/AT328/cmake-build-all

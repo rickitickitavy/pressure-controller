@@ -1,0 +1,1 @@
+/home/dsporykhin/.platformio/packages/toolchain-atmelavr/bin/avr-g++    -rdynamic CMakeFiles/Z_DUMMY_TARGET.dir/src/main.cpp.o  -o Z_DUMMY_TARGET 
