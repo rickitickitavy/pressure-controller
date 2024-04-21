@@ -473,16 +473,11 @@ CMakeFiles/Z_DUMMY_TARGET.dir/src/main.cpp.o: /home/dsporykhin/projects/home/cpp
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_SPIDevice.h \
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_SPITFT.h \
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_SPITFT_Macros.h \
-  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST7735.h \
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST7789.h \
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST77xx.h \
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeMonoBoldOblique24pt7b.h \
-  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeSans12pt7b.h \
-  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeSans9pt7b.h \
   /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/gfxfont.h
 
-
-/home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeSans12pt7b.h:
 
 /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeMonoBoldOblique24pt7b.h:
 
@@ -567,8 +562,6 @@ CMakeFiles/Z_DUMMY_TARGET.dir/src/main.cpp.o: /home/dsporykhin/projects/home/cpp
 /home/dsporykhin/.platformio/packages/toolchain-atmelavr/lib/gcc/avr/7.3.0/include/stdbool.h:
 
 /home/dsporykhin/.platformio/packages/framework-arduino-avr-minicore/cores/MiniCore/HardwareSerial.h:
-
-/home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeSans9pt7b.h:
 
 /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_GFX.h:
 

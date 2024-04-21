@@ -38,20 +38,16 @@ CMakeFiles/Z_DUMMY_TARGET.dir/src/main.cpp.o: \
  /home/dsporykhin/.platformio/packages/toolchain-atmelavr/avr/include/avr/sleep.h \
  /home/dsporykhin/.platformio/packages/toolchain-atmelavr/avr/include/avr/power.h \
  /home/dsporykhin/.platformio/packages/framework-arduino-avr-minicore/variants/standard/pins_arduino.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_GFX.h \
+ /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST7789.h \
+ /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST77xx.h \
  /home/dsporykhin/.platformio/packages/framework-arduino-avr-minicore/cores/MiniCore/Print.h \
+ /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_GFX.h \
  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/gfxfont.h \
  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_I2CDevice.h \
  /home/dsporykhin/.platformio/packages/framework-arduino-avr-minicore/libraries/Wire/src/Wire.h \
  /home/dsporykhin/.platformio/packages/framework-arduino-avr-minicore/cores/MiniCore/Stream.h \
  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_SPIDevice.h \
  /home/dsporykhin/.platformio/packages/framework-arduino-avr-minicore/libraries/SPI/src/SPI.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST7735.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST77xx.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_GFX.h \
  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_SPITFT.h \
  /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_SPITFT_Macros.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/Adafruit_ST7789.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeSans12pt7b.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeMonoBoldOblique24pt7b.h \
- /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeSans9pt7b.h
+ /home/dsporykhin/projects/home/cpp/presure-controller/src/adafruit/FreeMonoBoldOblique24pt7b.h
