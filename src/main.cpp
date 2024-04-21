@@ -19,12 +19,12 @@ float real_value = -1;
 Adafruit_ST7789 *tft;
 
 struct settings_t{
-    char sig = 0xAA;
+    char sig = 0xA1;
     float max_pressure = 3.2;
     float min_pressure = 1.7;
     float ema = 0.1;
     long time_to_reach_half_of_pressure = 40000;
-    long max_pump_on_time = 140000;
+    long max_pump_on_time = 120000;
     long time_to_reach_min_pressure = 5000;
 };
 
@@ -107,11 +107,11 @@ void setup() {
     tft->fillScreen(ST77XX_BLACK);
 
     tft->setFont(&FreeMonoBoldOblique24pt7b);
-    tft->setCursor(30, 130);
+    tft->setCursor(10, 130);
     tft->setTextColor(ST77XX_YELLOW);
-    tft->print("V 0.99");
+    tft->print("Ver A-1");
 
-    delay(500);
+    delay(800);
     tft->fillScreen(ST77XX_BLACK);
 
     tft->fillRect(0, 0, 240, 64, ST77XX_RED);
@@ -261,11 +261,8 @@ void  manageActivePump(){
 
             tft->setCursor(180, 190);
             if ((millis() - pump_started_at) > settings.max_pump_on_time) {
-                pump_active = false;
-                pump_enabled = false;
-                digitalWrite(PUMP_PIN, LOW);
-                drawPump(ST77XX_RED);
-//                tft->print("E2");
+                failed = false;
+                updateCurrentPressure();
             }
             else if (real_value < settings.min_pressure)
                 tft->print("E0");
