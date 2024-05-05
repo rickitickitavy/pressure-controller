@@ -9,6 +9,8 @@
 
 #define PUMP_PIN 12
 
+#define ADC_V 5.0F
+#define ADC_STEPS 1024.0F
 
 uint32_t lastWork;
 uint32_t lastScreenUpdated = 0;
@@ -19,13 +21,16 @@ float real_value = -1;
 Adafruit_ST7789 *tft;
 
 struct settings_t{
-    char sig = 0xA1;
+    char sig = 0x51;
     float max_pressure = 3.2;
     float min_pressure = 1.7;
     float ema = 0.1;
     long time_to_reach_half_of_pressure = 40000;
     long max_pump_on_time = 120000;
     long time_to_reach_min_pressure = 5000;
+    float sensor_V = 5.0F;
+    long scan_sensor_sensor_ms = 20;
+    float sensor_corr = 0.917;
 };
 
 long button_press_time[5] = {0, 0, 0, 0, 0};
@@ -38,6 +43,8 @@ bool pump_active = false;
 long pump_started_at = 0;
 bool failed = false;
 long min_max_changed_at = -1;
+
+float v_op;
 
 #define ST77XX_DARKGREEN 0x03E0
 #define ST77XX_DARKGRAY 0x31E7
@@ -129,6 +136,8 @@ void setup() {
     for (int index = 0; index < 5; pinMode(button_pins[index++], INPUT_PULLUP));
 
     drawPump(ST77XX_DARKGRAY2);
+
+    v_op = 5.0F / settings.sensor_V;
 }
 
 bool readStatusButton(int index) {
@@ -277,9 +286,9 @@ void loop() {
         manageButtons();
         manageActivePump();
     }
-    if ((millis() - lastWork) > 20) {
+    if ((millis() - lastWork) > settings.scan_sensor_sensor_ms) {
         lastWork = millis();
-        real_value = analogRead(A0) * 25.0F / (1024.0F * 3.3F);
+        real_value = analogRead(A0) * v_op * (ADC_V / ADC_STEPS) * settings.sensor_corr;
         if (ema_value == -1)
             ema_value = real_value;
         else
