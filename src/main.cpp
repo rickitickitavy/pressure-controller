@@ -227,8 +227,11 @@ void manageButtons() {
         }
     }
 
-    if (((min_max_changed_at != -1) && (time - min_max_changed_at) > 4000)
-        || ((range_index_changed_at != -1) && (time - range_index_changed_at) > 4000)){
+    if (
+        (((min_max_changed_at != -1) && ((time - min_max_changed_at) > 4000)) || (min_max_changed_at == -1))
+            && (range_index_changed_at != -1) && ((time - range_index_changed_at) > 4000)
+      ){
+
         drawOffEditMode();
         range_index = -1;
         range_index_changed_at -1;
