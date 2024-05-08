@@ -46,6 +46,7 @@ long min_max_changed_at = -1;
 
 int action_code = -1;
 int range_index = -1;
+long range_index_changed_at = 0;
 bool long_press = false;
 
 float v_op;
@@ -212,16 +213,25 @@ void drawOffEditMode(){
 
 void manageButtons() {
 
+    long time = millis();
     // check to time to save changes if any
     if (min_max_changed_at != -1){
-        if ((millis() - min_max_changed_at) > 4000){
+        if ((time - min_max_changed_at) > 4000){
             // time to save
             min_max_changed_at = -1;
             saveSettings();
             tft->fillCircle(30, 95, 10, ST77XX_BLACK);
             drawOffEditMode();
             range_index = -1;
+            range_index_changed_at -1;
         }
+    }
+
+    if (((min_max_changed_at != -1) && (time - min_max_changed_at) > 4000)
+        || ((range_index_changed_at != -1) && (time - range_index_changed_at) > 4000)){
+        drawOffEditMode();
+        range_index = -1;
+        range_index_changed_at -1;
     }
 
     bool max_changed = false;
@@ -276,6 +286,7 @@ void manageButtons() {
             break;
         case 5:
             drawOffEditMode();
+            range_index_changed_at = time;
             range_index++;
             if (range_index > 1)
                 range_index = -1;
@@ -304,7 +315,7 @@ void manageButtons() {
     if (max_changed || min_changed){
         if (min_max_changed_at == -1)
             tft->fillCircle(30, 95, 10, ST77XX_GREEN);
-        min_max_changed_at = millis();
+        min_max_changed_at = time;
     }
 }
 
