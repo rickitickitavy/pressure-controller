@@ -21,7 +21,7 @@ float real_value = -1;
 Adafruit_ST7789 *tft;
 
 struct settings_t{
-    char sig = 0x51;
+    char sig = 0x52;
     float max_pressure = 3.2;
     float min_pressure = 1.7;
     float ema = 0.1;
@@ -31,7 +31,7 @@ struct settings_t{
     long time_press_for_on_off_pump_ms = 1000;
     float sensor_V = 5.0F;
     long scan_sensor_sensor_ms = 20;
-    float sensor_corr = 0.917;
+    float sensor_corr = 1.0;
 };
 
 long button_press_time = 0;
