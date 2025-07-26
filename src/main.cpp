@@ -12,7 +12,7 @@
 #define ADC_V 5.0F
 #define ADC_STEPS 1024.0F
 
-uint32_t lastWork;
+unsigned long  lastWork;
 uint32_t lastScreenUpdated = 0;
 float lastDisplayedValue = 0;
 float ema_value = -1;
@@ -25,22 +25,22 @@ struct settings_t{
     float max_pressure = 3.2;
     float min_pressure = 1.7;
     float ema = 0.1;
-    long time_to_reach_half_of_pressure = 40000;
-    long max_pump_on_time = 120000;
-    long time_to_reach_min_pressure = 5000;
-    long time_press_for_on_off_pump_ms = 1000;
+    unsigned long time_to_reach_half_of_pressure = 40000;
+    unsigned long max_pump_on_time = 120000;
+    unsigned long time_to_reach_min_pressure = 5000;
+    unsigned long time_press_for_on_off_pump_ms = 1000;
     float sensor_V = 5.0F;
-    long scan_sensor_sensor_ms = 20;
+    unsigned long scan_sensor_sensor_ms = 20;
     float sensor_corr = 1.0;
 };
 
-long button_press_time = 0;
+unsigned long button_press_time = 0;
 bool button_pressed_status = false;
-long anti_buzzle_ms = 150;
+unsigned long anti_buzzle_ms = 150;
 settings_t settings;
 bool pump_enabled = true;
 bool pump_active = false;
-long pump_started_at = 0;
+unsigned long pump_started_at = 0;
 bool failed = false;
 long min_max_changed_at = -1;
 
@@ -61,7 +61,7 @@ int16_t pump_y[] = {0, 8, 18, 38, 23, 43, 28, 68};
 int16_t pump_h[] = {8, 10, 50, 20, 50, 10, 40, 10};
 
 void drawPump(int16_t x, int16_t y, uint16_t color) {
-    for (char index = 0; index < 8; index++)
+    for (int index = 0; index < 8; index++)
         tft->fillRect(x + pump_x[index], y + pump_y[index], pump_w[index], pump_h[index], color);
 
     tft->fillTriangle(x + 22, y + 18, x + 32, y + 18, x + 22, y + 28, ST77XX_BLACK);
@@ -223,7 +223,7 @@ void manageButtons() {
             tft->fillCircle(30, 95, 10, ST77XX_BLACK);
             drawOffEditMode();
             range_index = -1;
-            range_index_changed_at -1;
+            range_index_changed_at = -1;
         }
     }
 
@@ -234,7 +234,7 @@ void manageButtons() {
 
         drawOffEditMode();
         range_index = -1;
-        range_index_changed_at -1;
+        range_index_changed_at = -1;
     }
 
     bool max_changed = false;
@@ -324,7 +324,7 @@ void manageButtons() {
 
 void  manageActivePump(){
     if (pump_active){
-        long time_spent = millis() - pump_started_at;
+        unsigned long time_spent = millis() - pump_started_at;
 
         if (((real_value < ((settings.max_pressure - settings.min_pressure) / 2.0F + settings.min_pressure))
             && (time_spent >= settings.time_to_reach_half_of_pressure))
