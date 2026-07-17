@@ -1,22 +1,30 @@
 #include <Arduino.h>
 #include "adafruit/Adafruit_ST7789.h"
 #include "adafruit/FreeMonoBoldOblique24pt7b.h"
-#include <avr/eeprom.h>
+#include <EEPROM.h>
+#include "Logger.h"
 
-#define TFT_CS        10
-#define TFT_RST        9
-#define TFT_DC         8
+#define TFT_CS        7
+#define TFT_RST        3
+#define TFT_DC         2
 
-#define PUMP_PIN 12
+#define ROTARY_DETECT_PIN 20
+#define ROTARY_SECOND_PIN 10
+#define ROTARY_PRESS_PIN 8
+
+#define PUMP_PIN 21
 
 #define ADC_V 5.0F
 #define ADC_STEPS 1024.0F
+
+#define LOG_LEVEL LOG_LEVEL_INFO
 
 unsigned long  lastWork;
 uint32_t lastScreenUpdated = 0;
 float lastDisplayedValue = 0;
 float ema_value = -1;
 float real_value = -1;
+// Logger LOGGER;
 
 Adafruit_ST7789 *tft;
 
@@ -73,15 +81,25 @@ void drawPump(uint16_t color){
 }
 
 void saveSettings(){
-    eeprom_write_block(&settings, 0, sizeof(settings));
+
+    char *dataPtr = (char *)&settings;
+    for (int addr = 0; addr < sizeof(settings_t); addr++)
+        EEPROM.write(addr, dataPtr[addr]);
+
+    EEPROM.commit();
 }
 
 void loadSettings(){
-    if (eeprom_read_byte(0) != settings.sig){
+    if (EEPROM.read(0) != settings.sig){
+        LOGGER.debug("Initializing settings...");
         // eeprom was not initialized
         saveSettings();
+        LOGGER.debug("Settings initialized");
+
     } else {
-        eeprom_read_block(&settings, 0, sizeof(settings) );
+        LOGGER.debug("Loading settings...");
+        EEPROM.readBytes(0, &settings, sizeof(settings) );
+        LOGGER.debug("Settings loaded");
     }
 }
 
@@ -108,7 +126,7 @@ void drawMaxPressure(){
 
 void rotaryDetected(){
     if (range_index >= 0) {
-        if (digitalRead(4))
+        if (digitalRead(ROTARY_SECOND_PIN))
             action_code = 1 + (range_index << 1);
         else
             action_code = 0 + (range_index << 1);
@@ -119,7 +137,7 @@ int readButton() {
     long time = millis();
     if ((time - button_press_time) > anti_buzzle_ms) {
         // it's time to check button state
-        int free = digitalRead(3);
+        int free = digitalRead(ROTARY_PRESS_PIN);
 
         if (!free && long_press)
             return -1;
@@ -194,11 +212,11 @@ void setup() {
 
     v_op = 5.0F / settings.sensor_V;
 
-    pinMode(2, INPUT);
-    pinMode(3, INPUT_PULLUP);
-    pinMode(4, INPUT);
+    pinMode(ROTARY_DETECT_PIN, INPUT);
+    pinMode(ROTARY_PRESS_PIN, INPUT_PULLUP);
+    pinMode(ROTARY_SECOND_PIN, INPUT);
 
-    attachInterrupt(digitalPinToInterrupt(2), rotaryDetected, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ROTARY_DETECT_PIN), rotaryDetected, FALLING);
 
 }
 
