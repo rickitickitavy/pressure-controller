@@ -42,6 +42,8 @@ struct settings_t{
     float sensor_corr = 1.0;
 };
 
+unsigned long  lastRotaryDetected = 0;
+
 unsigned long button_press_time = 0;
 bool button_pressed_status = false;
 unsigned long anti_buzzle_ms = 150;
@@ -125,11 +127,14 @@ void drawMaxPressure(){
 }
 
 void rotaryDetected(){
-    if (range_index >= 0) {
-        if (digitalRead(ROTARY_SECOND_PIN))
-            action_code = 1 + (range_index << 1);
-        else
-            action_code = 0 + (range_index << 1);
+    if ((millis() - lastRotaryDetected) > 50) {
+        lastRotaryDetected = millis();
+        if (range_index >= 0) {
+            if (digitalRead(ROTARY_SECOND_PIN))
+                action_code = 1 + (range_index << 1);
+            else
+                action_code = 0 + (range_index << 1);
+        }
     }
 }
 
