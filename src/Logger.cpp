@@ -13,11 +13,12 @@
 
 #define NEW_LINE_PART_LEN 4
 
-Logger LOGGER;
+// Logger *LOGGER = new Logger();
 
 Logger::Logger() {
 #ifdef CON_DEBUG
-    Serial.begin(921600);
+    Serial.begin(115200);
+    delay(300);
     Serial.println("Starting logger...");
 #endif
     datetime_buffer = (char*)malloc(256);

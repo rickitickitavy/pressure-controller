@@ -8,17 +8,19 @@
 #define TFT_RST        3
 #define TFT_DC         2
 
-#define ROTARY_DETECT_PIN 20
+#define ROTARY_DETECT_PIN 1
 #define ROTARY_SECOND_PIN 10
 #define ROTARY_PRESS_PIN 8
 
-#define PUMP_PIN 21
+#define PUMP_PIN 9
+#define SENSOR_PIN 0
 
-#define ADC_V 5.0F
-#define ADC_STEPS 1024.0F
+#define ADC_V 3.3F
+#define ADC_MAX_VALUE 4096.0F
 
 #define LOG_LEVEL LOG_LEVEL_INFO
 
+Logger *LOGGER;
 unsigned long  lastWork;
 uint32_t lastScreenUpdated = 0;
 float lastDisplayedValue = 0;
@@ -29,15 +31,15 @@ float real_value = -1;
 Adafruit_ST7789 *tft;
 
 struct settings_t{
-    char sig = 0x52;
+    char sig = 0x50;
     float max_pressure = 3.2;
     float min_pressure = 1.7;
-    float ema = 0.1;
-    unsigned long time_to_reach_half_of_pressure = 40000;
-    unsigned long max_pump_on_time = 120000;
-    unsigned long time_to_reach_min_pressure = 5000;
+    float ema = 0.04;
+    unsigned long time_to_reach_half_of_pressure = 90000;
+    unsigned long max_pump_on_time = 180000;
+    unsigned long time_to_reach_min_pressure = 15000;
     unsigned long time_press_for_on_off_pump_ms = 1000;
-    float sensor_V = 5.0F;
+    float sensor_nax_presure_kgs = 50.0F;
     unsigned long scan_sensor_sensor_ms = 20;
     float sensor_corr = 1.0;
 };
@@ -58,8 +60,6 @@ int action_code = -1;
 int range_index = -1;
 long range_index_changed_at = 0;
 bool long_press = false;
-
-float v_op;
 
 #define ST77XX_DARKGREEN 0x03E0
 #define ST77XX_DARKGRAY 0x31E7
@@ -85,31 +85,34 @@ void drawPump(uint16_t color){
 void saveSettings(){
 
     char *dataPtr = (char *)&settings;
-    for (int addr = 0; addr < sizeof(settings_t); addr++)
-        EEPROM.write(addr, dataPtr[addr]);
-
+    LOGGER->info("Settings size is " + String(sizeof(settings_t)));
+    EEPROM.writeBytes(0, &settings, sizeof(settings_t));
     EEPROM.commit();
 }
 
 void loadSettings(){
+    EEPROM.begin(256);
+    int8_t sig = EEPROM.readByte(0);
+
     if (EEPROM.read(0) != settings.sig){
-        LOGGER.debug("Initializing settings...");
+        LOGGER->info("Initializing settings...");
         // eeprom was not initialized
         saveSettings();
-        LOGGER.debug("Settings initialized");
+        LOGGER->info("Settings initialized");
 
     } else {
-        LOGGER.debug("Loading settings...");
+        LOGGER->info("Loading settings...");
         EEPROM.readBytes(0, &settings, sizeof(settings) );
-        LOGGER.debug("Settings loaded");
+        LOGGER->info("Settings loaded");
     }
 }
 
 void updateCurrentPressure(){
     tft->setCursor(50, 110);
-    tft->fillRect(50, 80, 120, 38, ST77XX_BLACK);
+    tft->fillRect(50, 80, 160, 38, ST77XX_BLACK);
     tft->setTextColor(failed ? ST77XX_RED : ST77XX_WHITE);
-    tft->printf("%s", String(lastDisplayedValue).c_str());
+    // tft->printf("%s", String(lastDisplayedValue).c_str());
+    tft->printf("%2.2f", lastDisplayedValue);
 }
 
 void drawMinPressure() {
@@ -181,6 +184,8 @@ int getCurrentAction() {
 
 
 void setup() {
+    LOGGER = new Logger();
+
     pinMode(PUMP_PIN, OUTPUT);
     digitalWrite(PUMP_PIN, LOW);
 
@@ -211,11 +216,9 @@ void setup() {
     tft->print("Min");
     drawMinPressure();
 
-    pinMode(A0, INPUT);
+    pinMode(SENSOR_PIN, INPUT);
 
     drawPump(ST77XX_DARKGRAY2);
-
-    v_op = 5.0F / settings.sensor_V;
 
     pinMode(ROTARY_DETECT_PIN, INPUT);
     pinMode(ROTARY_PRESS_PIN, INPUT_PULLUP);
@@ -379,13 +382,14 @@ void  manageActivePump(){
 }
 
 void loop() {
+
     if (!failed) {
         manageButtons();
         manageActivePump();
     }
     if ((millis() - lastWork) > settings.scan_sensor_sensor_ms) {
         lastWork = millis();
-        real_value = analogRead(A0) * v_op * (ADC_V / ADC_STEPS) * settings.sensor_corr - 1.0F;
+        real_value = analogRead(SENSOR_PIN) / ADC_MAX_VALUE * settings.sensor_nax_presure_kgs * settings.sensor_corr - 1.0F;
         if (ema_value == -1)
             ema_value = real_value;
         else

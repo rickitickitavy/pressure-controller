@@ -21,7 +21,7 @@
 #define LOG_LEVEL_ERROR 4
 #define LOG_LEVEL_NOTHING 5
 
-#define CON_DEBUG
+#define CON_DEBUG true
 
 
 class Logger {
@@ -54,6 +54,6 @@ public:
 
 };
 
-extern Logger LOGGER;
+// extern Logger LOGGER;
 
 #endif /* LOGGER_H_ */
