@@ -1,426 +1,322 @@
 #include <Arduino.h>
-#include "adafruit/Adafruit_ST7789.h"
-#include "adafruit/FreeMonoBoldOblique24pt7b.h"
-#include <EEPROM.h>
-#include "Logger.h"
 
-#define TFT_CS        7
-#define TFT_RST        3
-#define TFT_DC         2
+#include "display.h"
+#include "encoder.h"
+#include "pins.h"
+#include "pressure.h"
+#include "settings.h"
 
-#define ROTARY_DETECT_PIN 1
-#define ROTARY_SECOND_PIN 10
-#define ROTARY_PRESS_PIN 8
+namespace {
+constexpr unsigned long kEditIdleMs = 5000;
+constexpr unsigned long kSettingsIdleMs = 10000;
+constexpr unsigned long kDisplayMs = 100;
 
-#define PUMP_PIN 9
-#define SENSOR_PIN 0
+UiMode gMode = UiMode::Run;
+PressureSettings gSettings;
+PressureSettings gDraft;
+SettingsFocus gFocus = SettingsFocus::Leak;
+bool gPumpOn = false;
+bool gThresholdsDirty = false;
 
-#define ADC_V 3.3F
-#define ADC_MAX_VALUE 4096.0F
+unsigned long gLastActivityMs = 0;
+unsigned long gPumpOnSinceMs = 0;
+unsigned long gAwaitingMinSinceMs = 0;
+bool gAwaitingMin = false;
+unsigned long gLastDisplayMs = 0;
 
-#define LOG_LEVEL LOG_LEVEL_INFO
-
-Logger *LOGGER;
-unsigned long  lastWork;
-uint32_t lastScreenUpdated = 0;
-float lastDisplayedValue = 0;
-float ema_value = -1;
-float real_value = -1;
-// Logger LOGGER;
-
-Adafruit_ST7789 *tft;
-
-struct settings_t{
-    char sig = 0x50;
-    float max_pressure = 3.2;
-    float min_pressure = 1.7;
-    float ema = 0.04;
-    unsigned long time_to_reach_half_of_pressure = 90000;
-    unsigned long max_pump_on_time = 180000;
-    unsigned long time_to_reach_min_pressure = 15000;
-    unsigned long time_press_for_on_off_pump_ms = 1000;
-    float sensor_nax_presure_kgs = 50.0F;
-    unsigned long scan_sensor_sensor_ms = 20;
-    float sensor_corr = 1.0;
-};
-
-unsigned long  lastRotaryDetected = 0;
-
-unsigned long button_press_time = 0;
-bool button_pressed_status = false;
-unsigned long anti_buzzle_ms = 150;
-settings_t settings;
-bool pump_enabled = true;
-bool pump_active = false;
-unsigned long pump_started_at = 0;
-bool failed = false;
-long min_max_changed_at = -1;
-
-int action_code = -1;
-int range_index = -1;
-long range_index_changed_at = 0;
-bool long_press = false;
-
-#define ST77XX_DARKGREEN 0x03E0
-#define ST77XX_DARKGRAY 0x31E7
-#define ST77XX_DARKGRAY2 0x2104
-
-int16_t pump_x[] = {32, 47, 22, 89, 98, 11, 0, 38};
-int16_t pump_w[] = {40, 10, 66, 8, 14, 10, 10, 50};
-int16_t pump_y[] = {0, 8, 18, 38, 23, 43, 28, 68};
-int16_t pump_h[] = {8, 10, 50, 20, 50, 10, 40, 10};
-
-void drawPump(int16_t x, int16_t y, uint16_t color) {
-    for (int index = 0; index < 8; index++)
-        tft->fillRect(x + pump_x[index], y + pump_y[index], pump_w[index], pump_h[index], color);
-
-    tft->fillTriangle(x + 22, y + 18, x + 32, y + 18, x + 22, y + 28, ST77XX_BLACK);
-    tft->fillTriangle(x + 38, y + 69, x + 47, y + 78, x + 38, y + 78, ST77XX_BLACK);
+void setPump(bool on) {
+  if (on == gPumpOn) {
+    return;
+  }
+  gPumpOn = on;
+  digitalWrite(PIN_PUMP, on ? HIGH : LOW);
+  if (on) {
+    gPumpOnSinceMs = millis();
+    gAwaitingMin = true;
+    gAwaitingMinSinceMs = millis();
+  } else {
+    gAwaitingMin = false;
+  }
 }
 
-void drawPump(uint16_t color){
-    drawPump(50, 140, color);
+void enterFail() {
+  setPump(false);
+  gMode = UiMode::Fail;
+  gThresholdsDirty = false;
 }
 
-void saveSettings(){
-
-    char *dataPtr = (char *)&settings;
-    LOGGER->info("Settings size is " + String(sizeof(settings_t)));
-    EEPROM.writeBytes(0, &settings, sizeof(settings_t));
-    EEPROM.commit();
+void leaveEditToRun() {
+  if (gThresholdsDirty) {
+    Settings::save(gSettings);
+    gThresholdsDirty = false;
+  }
+  gMode = UiMode::Run;
 }
 
-void loadSettings(){
-    EEPROM.begin(256);
-    int8_t sig = EEPROM.readByte(0);
+void enterSettings() {
+  if (gThresholdsDirty) {
+    Settings::save(gSettings);
+    gThresholdsDirty = false;
+  }
+  gDraft = gSettings;
+  gFocus = SettingsFocus::Leak;
+  gMode = UiMode::Settings;
+  gLastActivityMs = millis();
+  // #region agent log
+  Serial.printf(
+      "{\"sessionId\":\"2ce4f1\",\"hypothesisId\":\"S\",\"location\":\"main.cpp:enterSettings\","
+      "\"message\":\"enter_settings\",\"data\":{\"leak\":%u,\"weak\":%u},"
+      "\"timestamp\":%lu,\"runId\":\"settings-ui\"}\n",
+      static_cast<unsigned>(gDraft.leakDetectSec),
+      static_cast<unsigned>(gDraft.pumpWeakSec),
+      static_cast<unsigned long>(millis()));
+  // #endregion
+}
 
-    if (EEPROM.read(0) != settings.sig){
-        LOGGER->info("Initializing settings...");
-        // eeprom was not initialized
-        saveSettings();
-        LOGGER->info("Settings initialized");
+void applySettingsSave() {
+  gSettings.leakDetectSec = gDraft.leakDetectSec;
+  gSettings.pumpWeakSec = gDraft.pumpWeakSec;
+  gSettings.sensorMaxMpa = gDraft.sensorMaxMpa;
+  Settings::clampAdvanced(gSettings);
+  Settings::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
+  Settings::save(gSettings);
+  Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
+  gDraft = gSettings;
+  gMode = UiMode::Run;
+  gLastActivityMs = millis();
+}
 
-    } else {
-        LOGGER->info("Loading settings...");
-        EEPROM.readBytes(0, &settings, sizeof(settings) );
-        LOGGER->info("Settings loaded");
+void applySettingsCancel() {
+  gDraft = gSettings;
+  gMode = UiMode::Run;
+  gLastActivityMs = millis();
+}
+
+void applyEncoderEdit(int steps) {
+  if (steps == 0) {
+    return;
+  }
+  gLastActivityMs = millis();
+  const float delta = static_cast<float>(steps) * PRESSURE_STEP_MPA;
+  if (gMode == UiMode::EditMax) {
+    gSettings.maxMpa += delta;
+  } else if (gMode == UiMode::EditMin) {
+    gSettings.minMpa += delta;
+  } else {
+    return;
+  }
+  Settings::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
+  gThresholdsDirty = true;
+}
+
+void applySettingsEncoder(int steps) {
+  if (steps == 0) {
+    return;
+  }
+  gLastActivityMs = millis();
+
+  switch (gFocus) {
+    case SettingsFocus::Leak: {
+      int v = static_cast<int>(gDraft.leakDetectSec) + steps;
+      if (v < LEAK_SEC_MIN) {
+        v = LEAK_SEC_MIN;
+      }
+      if (v > LEAK_SEC_MAX) {
+        v = LEAK_SEC_MAX;
+      }
+      gDraft.leakDetectSec = static_cast<uint16_t>(v);
+      break;
     }
-}
-
-void updateCurrentPressure(){
-    tft->setCursor(50, 110);
-    tft->fillRect(50, 80, 160, 38, ST77XX_BLACK);
-    tft->setTextColor(failed ? ST77XX_RED : ST77XX_WHITE);
-    // tft->printf("%s", String(lastDisplayedValue).c_str());
-    tft->printf("%2.2f", lastDisplayedValue);
-}
-
-void drawMinPressure() {
-    tft->setTextColor(ST77XX_WHITE);
-    tft->fillRect(112, 249, 120, 38, ST77XX_DARKGREEN);
-    tft->setCursor(112, 283);
-    tft->print(String(settings.min_pressure));
-}
-
-void drawMaxPressure(){
-    tft->setTextColor(ST77XX_YELLOW);
-    tft->fillRect(112, 8, 120, 38, ST77XX_RED);
-    tft->setCursor(112, 42);
-    tft->print(String(settings.max_pressure));
-}
-
-void rotaryDetected(){
-    if ((millis() - lastRotaryDetected) > 50) {
-        lastRotaryDetected = millis();
-        if (range_index >= 0) {
-            if (digitalRead(ROTARY_SECOND_PIN))
-                action_code = 1 + (range_index << 1);
-            else
-                action_code = 0 + (range_index << 1);
-        }
+    case SettingsFocus::Weak: {
+      int v = static_cast<int>(gDraft.pumpWeakSec) + steps;
+      if (v < WEAK_SEC_MIN) {
+        v = WEAK_SEC_MIN;
+      }
+      if (v > WEAK_SEC_MAX) {
+        v = WEAK_SEC_MAX;
+      }
+      gDraft.pumpWeakSec = static_cast<uint16_t>(v);
+      break;
     }
+    case SettingsFocus::SensorMax:
+      gDraft.sensorMaxMpa += static_cast<float>(steps) * SENSOR_MAX_STEP_MPA;
+      Settings::clampAdvanced(gDraft);
+      break;
+    case SettingsFocus::Save:
+    case SettingsFocus::Cancel:
+    case SettingsFocus::Count:
+      // Buttons are navigated by short press only.
+      break;
+  }
 }
 
-int readButton() {
-    long time = millis();
-    if ((time - button_press_time) > anti_buzzle_ms) {
-        // it's time to check button state
-        int free = digitalRead(ROTARY_PRESS_PIN);
-
-        if (!free && long_press)
-            return -1;
-
-        long_press = false;
-
-        if (!button_pressed_status && (!free)) {
-            button_pressed_status = true;
-            button_press_time = time;
-            return 5;
-        } else if ((button_pressed_status) && (free)) {
-            button_pressed_status = false;
-            button_press_time = time;
-            return -1;
-        } else if (button_pressed_status && !free && ((time - button_press_time) > settings.time_press_for_on_off_pump_ms)) {
-            button_press_time = time;
-            long_press = true;
-            return 4;
-        }else
-            return -1;
-    } else
-        return -1;
-
-}
-
-int getCurrentAction() {
-    int btn_code = readButton();
-    if (btn_code != -1)
-        return btn_code;
-    else {
-        int ret_value = action_code;
-        action_code = -1;
-        return ret_value;
+void handleSettingsButton() {
+  // 1s hold activates SAVE / CANCEL when selected.
+  if (Encoder::consumeHoldPress()) {
+    gLastActivityMs = millis();
+    if (gFocus == SettingsFocus::Save) {
+      applySettingsSave();
+      return;
     }
+    if (gFocus == SettingsFocus::Cancel) {
+      applySettingsCancel();
+      return;
+    }
+  }
+
+  // Short press rolls over parameters and buttons.
+  if (!Encoder::consumePress()) {
+    return;
+  }
+  gLastActivityMs = millis();
+  const auto next = static_cast<uint8_t>(gFocus) + 1;
+  if (next >= static_cast<uint8_t>(SettingsFocus::Count)) {
+    gFocus = SettingsFocus::Leak;
+  } else {
+    gFocus = static_cast<SettingsFocus>(next);
+  }
 }
 
+void handleMainButton() {
+  if (Encoder::consumeLongPress()) {
+    if (gMode == UiMode::Run || gMode == UiMode::EditMax || gMode == UiMode::EditMin) {
+      enterSettings();
+    }
+    (void)Encoder::consumePress();  // discard any pending short
+    return;
+  }
+
+  if (!Encoder::consumePress()) {
+    return;
+  }
+  gLastActivityMs = millis();
+
+  switch (gMode) {
+    case UiMode::Run:
+      gMode = UiMode::EditMax;
+      break;
+    case UiMode::EditMax:
+      gMode = UiMode::EditMin;
+      break;
+    case UiMode::EditMin:
+      leaveEditToRun();
+      break;
+    case UiMode::Fail:
+    case UiMode::Settings:
+      break;
+  }
+}
+
+void updateControl(float pressure) {
+  if (gMode == UiMode::Fail || gMode == UiMode::Settings) {
+    return;
+  }
+
+  if (!gPumpOn && pressure < gSettings.minMpa) {
+    setPump(true);
+  } else if (gPumpOn && pressure >= gSettings.maxMpa) {
+    setPump(false);
+  }
+
+  if (!gPumpOn) {
+    return;
+  }
+
+  const unsigned long leakMs =
+      static_cast<unsigned long>(gSettings.leakDetectSec) * 1000UL;
+  const unsigned long weakMs =
+      static_cast<unsigned long>(gSettings.pumpWeakSec) * 1000UL;
+
+  if (gAwaitingMin) {
+    if (pressure >= gSettings.minMpa) {
+      gAwaitingMin = false;
+    } else if ((millis() - gAwaitingMinSinceMs) >= leakMs) {
+      enterFail();
+      return;
+    }
+  }
+
+  if ((millis() - gPumpOnSinceMs) >= weakMs) {
+    enterFail();
+  }
+}
+
+void updateTimeouts() {
+  if (gMode == UiMode::EditMax || gMode == UiMode::EditMin) {
+    if ((millis() - gLastActivityMs) >= kEditIdleMs) {
+      leaveEditToRun();
+    }
+  } else if (gMode == UiMode::Settings) {
+    if ((millis() - gLastActivityMs) >= kSettingsIdleMs) {
+      // #region agent log
+      Serial.printf(
+          "{\"sessionId\":\"2ce4f1\",\"hypothesisId\":\"S\",\"location\":\"main.cpp:timeout\","
+          "\"message\":\"settings_idle_cancel\",\"timestamp\":%lu,\"runId\":\"settings-ui\"}\n",
+          static_cast<unsigned long>(millis()));
+      // #endregion
+      applySettingsCancel();
+    }
+  }
+}
+}  // namespace
 
 void setup() {
-    LOGGER = new Logger();
+  Serial.begin(115200);
 
-    pinMode(PUMP_PIN, OUTPUT);
-    digitalWrite(PUMP_PIN, LOW);
+  pinMode(PIN_PUMP, OUTPUT);
+  digitalWrite(PIN_PUMP, LOW);
 
-    lastWork = millis();
-    loadSettings();
+  Settings::begin();
+  gSettings = Settings::load();
+  gDraft = gSettings;
+  Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
 
-    tft = new Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
-    tft->init(240, 320);
-    tft->setRotation(2);
-    tft->fillScreen(ST77XX_BLACK);
+  Pressure::begin(PIN_PRESSURE);
+  Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
+  Display::begin();
 
-    tft->setFont(&FreeMonoBoldOblique24pt7b);
-    tft->setCursor(10, 130);
-    tft->setTextColor(ST77XX_YELLOW);
-    tft->print("Ver A-1");
-
-    delay(800);
-    tft->fillScreen(ST77XX_BLACK);
-
-    tft->fillRect(0, 0, 240, 64, ST77XX_RED);
-    tft->setCursor(7, 42);
-    tft->print("Max");
-    drawMaxPressure();
-
-    tft->fillRect(0, 241, 240, 64, ST77XX_DARKGREEN);
-    tft->setCursor(7, 283);
-    tft->setTextColor(ST77XX_WHITE);
-    tft->print("Min");
-    drawMinPressure();
-
-    pinMode(SENSOR_PIN, INPUT);
-
-    drawPump(ST77XX_DARKGRAY2);
-
-    pinMode(ROTARY_DETECT_PIN, INPUT);
-    pinMode(ROTARY_PRESS_PIN, INPUT_PULLUP);
-    pinMode(ROTARY_SECOND_PIN, INPUT);
-
-    attachInterrupt(digitalPinToInterrupt(ROTARY_DETECT_PIN), rotaryDetected, FALLING);
-
-}
-
-void drawOffEditMode(){
-    switch (range_index) {
-        case 0: tft->fillRect(0, 53, 240, 6, ST77XX_RED);
-            break;
-        case 1: tft->fillRect(0, 293, 240, 6, ST77XX_DARKGREEN);
-            break;
-    }
-}
-
-void manageButtons() {
-
-    long time = millis();
-    // check to time to save changes if any
-    if (min_max_changed_at != -1){
-        if ((time - min_max_changed_at) > 4000){
-            // time to save
-            min_max_changed_at = -1;
-            saveSettings();
-            tft->fillCircle(30, 95, 10, ST77XX_BLACK);
-            drawOffEditMode();
-            range_index = -1;
-            range_index_changed_at = -1;
-        }
-    }
-
-    if (
-        (((min_max_changed_at != -1) && ((time - min_max_changed_at) > 4000)) || (min_max_changed_at == -1))
-            && (range_index_changed_at != -1) && ((time - range_index_changed_at) > 4000)
-      ){
-
-        drawOffEditMode();
-        range_index = -1;
-        range_index_changed_at = -1;
-    }
-
-    bool max_changed = false;
-    bool min_changed = false;
-    bool pump_enabled_changed = false;
-
-    int button_code = getCurrentAction();//testButtons();
-    switch (button_code) {
-        case 0:
-            if (settings.max_pressure < 3.8F) {
-                settings.max_pressure += 0.01;
-                max_changed = true;
-            }
-            break;
-        case 1:
-            if (settings.max_pressure > 2.001F) {
-                settings.max_pressure -= 0.01;
-                max_changed = true;
-
-                if (settings.min_pressure > (settings.max_pressure - 0.1)) {
-                    settings.min_pressure = settings.max_pressure - 0.1;
-                    min_changed = true;
-                }
-            }
-            break;
-        case 2:
-            if (settings.min_pressure < 2.2F) {
-                settings.min_pressure += 0.01;
-                min_changed = true;
-
-                if (settings.min_pressure > (settings.max_pressure - 0.1)) {
-                    settings.max_pressure = settings.min_pressure + 0.1;
-                    max_changed = true;
-                }
-            }
-            break;
-        case 3:
-            if (settings.min_pressure > 1.201F) {
-                settings.min_pressure -= 0.01;
-                min_changed = true;
-            }
-            break;
-        case 4:
-            drawOffEditMode();
-            range_index = -1;
-            pump_enabled = !pump_enabled;
-            pump_enabled_changed = true;
-            if (!pump_enabled) {
-                pump_active = false;
-                digitalWrite(PUMP_PIN, LOW);
-            }
-            break;
-        case 5:
-            drawOffEditMode();
-            range_index_changed_at = time;
-            range_index++;
-            if (range_index > 1)
-                range_index = -1;
-
-            switch (range_index) {
-                case 0: tft->fillRect(0, 53, 240, 6, ST77XX_YELLOW);
-                    break;
-                case 1: tft->fillRect(0, 293, 240, 6, ST77XX_WHITE);
-                    break;
-            }
-            break;
-        default:
-            break;
-    }
-
-    if (max_changed)
-        drawMaxPressure();
-
-    if (min_changed)
-        drawMinPressure();
-
-    if (pump_enabled_changed){
-        drawPump(pump_enabled ? ST77XX_DARKGRAY2 : ST77XX_RED);
-    }
-
-    if (max_changed || min_changed){
-        if (min_max_changed_at == -1)
-            tft->fillCircle(30, 95, 10, ST77XX_GREEN);
-        min_max_changed_at = time;
-    }
-}
-
-void  manageActivePump(){
-    if (pump_active){
-        unsigned long time_spent = millis() - pump_started_at;
-
-        if (((real_value < ((settings.max_pressure - settings.min_pressure) / 2.0F + settings.min_pressure))
-            && (time_spent >= settings.time_to_reach_half_of_pressure))
-
-            || (time_spent > settings.max_pump_on_time)
-
-            || ((time_spent > settings.time_to_reach_min_pressure) && real_value < settings.min_pressure)){
-
-
-            // failure
-            digitalWrite(PUMP_PIN, LOW);
-            failed = true;
-            pump_enabled = false;
-            pump_active = false;
-            updateCurrentPressure();
-            drawPump(ST77XX_RED);
-
-            tft->setCursor(180, 190);
-            if ((millis() - pump_started_at) > settings.max_pump_on_time) {
-                failed = false;
-                updateCurrentPressure();
-            }
-            else if (real_value < settings.min_pressure)
-                tft->print("E0");
-            else
-                tft->print("E1");
-        }
-    }
+  gLastActivityMs = millis();
+  Serial.println("Pump controller ready");
 }
 
 void loop() {
+  Encoder::update();
 
-    if (!failed) {
-        manageButtons();
-        manageActivePump();
+  if (gMode == UiMode::Fail) {
+    (void)Encoder::consumePress();
+    (void)Encoder::consumeHoldPress();
+    (void)Encoder::consumeLongPress();
+    (void)Encoder::consumeSteps();
+  } else if (gMode == UiMode::Settings) {
+    (void)Encoder::consumeLongPress();
+    handleSettingsButton();
+    applySettingsEncoder(Encoder::consumeSteps());
+    updateTimeouts();
+  } else {
+    handleMainButton();
+    (void)Encoder::consumeHoldPress();  // unused on main screen
+    if (gMode == UiMode::EditMax || gMode == UiMode::EditMin) {
+      applyEncoderEdit(Encoder::consumeSteps());
+      updateTimeouts();
+    } else {
+      (void)Encoder::consumeSteps();
     }
-    if ((millis() - lastWork) > settings.scan_sensor_sensor_ms) {
-        lastWork = millis();
-        real_value = analogRead(SENSOR_PIN) / ADC_MAX_VALUE * settings.sensor_nax_presure_kgs * settings.sensor_corr - 1.0F;
-        if (ema_value == -1)
-            ema_value = real_value;
-        else
-            ema_value = ema_value * (1.0F - settings.ema) + real_value * settings.ema;
+  }
 
-        // process value
-        if (ema_value <= settings.min_pressure){
-            if (pump_enabled && !pump_active) {
-                // turn the pump on
-                digitalWrite(PUMP_PIN, HIGH);
-                pump_active = true;
-                pump_started_at = millis();
-                drawPump(ST77XX_GREEN);
-            }
-        } else if (ema_value >= settings.max_pressure){
-            if (pump_active){
-                digitalWrite(PUMP_PIN, LOW);
-                pump_active = false;
-                pump_started_at = millis();
-                drawPump(ST77XX_DARKGRAY2);
-            }
-        }
+  const float pressure = Pressure::readMpa();
+  updateControl(pressure);
 
-        // display
-        if ((abs(lastDisplayedValue - real_value) > 0.05)
-            || ((abs(lastDisplayedValue - ema_value) >= 0.01) && ((lastWork - lastScreenUpdated) > 500))) {
-            lastDisplayedValue = ema_value;
-            lastScreenUpdated = lastWork;
-
-            updateCurrentPressure();
-        }
-
-    }
+  const unsigned long now = millis();
+  if ((now - gLastDisplayMs) >= kDisplayMs) {
+    gLastDisplayMs = now;
+    UiState ui;
+    ui.mode = gMode;
+    ui.pressureMpa = pressure;
+    ui.minMpa = gSettings.minMpa;
+    ui.maxMpa = gSettings.maxMpa;
+    ui.pumpOn = gPumpOn;
+    ui.draft = gDraft;
+    ui.focus = gFocus;
+    Display::render(ui);
+  }
 }
