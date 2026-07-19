@@ -1,7 +1,7 @@
 # Pump controller — handoff / context
 
 PlatformIO project for **ESP32-C3-DevKitC-02** (`espressif32` / Arduino).  
-Path: `/home/dsporynkhin/Projects/cpp/home/esp32-15test-ai-1`
+Path: `/home/dsporynkhin/Projects/cpp/home/presure-controller`
 
 Use this file plus the plan copies in `docs/` when starting a new chat (`@docs/HANDOFF.md`).
 
@@ -31,10 +31,12 @@ Use this file plus the plan copies in `docs/` when starting a new chat (`@docs/H
 
 ## Main UI (top → bottom)
 
+Band heights in [`src/display.cpp`](../src/display.cpp) (`kHMax` / `kHCurrent` / `kHPump` / `kHMin`):
+
 1. **MAX** — yellow on red (edit: black on yellow); FreeSansBold 24pt  
-2. **Current** — cyan on black  
-3. **Pump** — ON / OFF  
-4. **MIN** — white on dark green (edit: black on yellow)
+2. **Current** — cyan on black, **horizontally centered**; FreeSansBold 24pt  
+3. **Pump** — icon (not ON/OFF text); **green** when ON, **gray** when OFF  
+4. **MIN** — white on dark green (edit: black on yellow); FreeSansBold 24pt  
 
 Partial bar redraws only (no full-screen clear in normal updates).
 
@@ -45,7 +47,14 @@ Partial bar redraws only (no full-screen clear in normal updates).
 | Run | Default control |
 | Edit MAX / MIN | Short button: Run → EditMax → EditMin → Run; rotate ±0.001 MPa; idle **5 s** (button or rotate resets timer) |
 | SETTINGS | Hold button **≥ 3 s** |
-| Fail | Leak or weak timeout; pump off; locked until reboot |
+| Fail | **LEAK** timeout only; pump off; locked until reboot |
+
+### Fail-safe / pump limits
+
+When the pump turns **ON**:
+
+1. **LEAK** (reach-min): if pressure has not reached **min** within `leakDetectSec` → enter **Fail** (latched until reboot).
+2. **WEAK** (max continuous run): if pump stays ON longer than `pumpWeakSec` → **pump OFF only** (no Fail). May turn ON again on the next loop if pressure is still below min (fresh weak timer).
 
 ### SETTINGS screen
 
@@ -59,7 +68,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 | Setting | Range | Step | Default |
 |---------|-------|------|---------|
 | LEAK (reach min after pump ON) | 5–40 s | 1 s | 10 |
-| WEAK (max pump ON) | 40–600 s | 1 s | 180 |
+| WEAK (max pump ON; then OFF, no Fail) | 40–600 s | 1 s | 180 |
 | SENS (sensor full-scale) | 2.0–50.0 Atm | 0.1 Atm | 5.0 |
 
 Persisted with ESP32 `Preferences` (NVS). See [`include/settings.h`](../include/settings.h).
@@ -67,7 +76,7 @@ Persisted with ESP32 `Preferences` (NVS). See [`include/settings.h`](../include/
 ## Key source files
 
 - `src/main.cpp` — FSM, control, settings apply  
-- `src/display.cpp` — ST7789 UI  
+- `src/display.cpp` — ST7789 UI + pump icon  
 - `src/encoder.cpp` — quadrature + short / 1 s hold / 3 s hold  
 - `src/pressure.cpp` — ADC → MPa  
 - `src/settings.cpp` — NVS load/save  
@@ -75,7 +84,7 @@ Persisted with ESP32 `Preferences` (NVS). See [`include/settings.h`](../include/
 ## Build / flash
 
 ```bash
-cd /home/dsporynkhin/Projects/cpp/home/esp32-15test-ai-1
+cd /home/dsporynkhin/Projects/cpp/home/presure-controller
 pio run
 pio run -t upload
 pio device monitor   # 115200
@@ -87,5 +96,5 @@ Serial still has temporary NDJSON debug logs (session `2ce4f1`) in `display.cpp`
 
 ## Plan copies in this folder
 
-- `plan-pump-pressure-controller.md` — original feature plan (partly outdated vs current code; prefer this HANDOFF for truth)
-- `plan-reset-edit-idle-timer.md` — idle timer on encoder rotation (implemented)
+- `plan-pump-pressure-controller.md` — feature plan (kept in sync with current behavior)
+- `plan-reset-edit-idle-timer.md` — idle timer on encoder rotation (**done**)

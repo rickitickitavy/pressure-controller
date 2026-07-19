@@ -237,7 +237,7 @@ void updateControl(float pressure) {
   }
 
   if ((millis() - gPumpOnSinceMs) >= weakMs) {
-    enterFail();
+    setPump(false);
   }
 }
 

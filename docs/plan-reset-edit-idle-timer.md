@@ -3,25 +3,21 @@
 todos:
   - id: "reset-on-rotate"
     content: "Reset edit idle timestamp in applyEncoderEdit when steps != 0"
-    status: pending
+    status: completed
 isProject: false
 ---
 # Reset edit idle timer on encoder rotation
 
-## Change
+## Status: done
 
-In [`src/main.cpp`](src/main.cpp), when edit mode applies encoder steps, refresh the idle timestamp the same way a button press does.
+In [`src/main.cpp`](../src/main.cpp), edit idle uses `gLastActivityMs`. Both button presses and encoder rotation refresh it:
 
-Today only the button path resets the timer:
+- Button path sets `gLastActivityMs = millis()` when entering/cycling edit.
+- `applyEncoderEdit()` sets `gLastActivityMs = millis()` when `steps != 0`.
+- Settings encoder path does the same via `applySettingsEncoder()`.
 
-```75:75:src/main.cpp
-  gLastButtonMs = millis();
-```
+`updateTimeouts()` exits EditMax/EditMin → Run only after **5 s with no button and no rotation**.
 
-Update `applyEncoderEdit()` so that when `steps != 0`, it also sets `gLastButtonMs = millis()` (or rename to `gLastEditActivityMs` for clarity). Then `updateEditTimeout()` still exits to Run only after **5 s with no button and no rotation**.
+## Out of scope (unchanged)
 
-Also update the behavior note in the project plan: encoder rotation **does** reset the 5 s idle window.
-
-## Out of scope
-
-No other control/UI changes. Leave display debug rotation instrumentation alone unless you ask to clean it up separately.
+No other control/UI changes required for this item.

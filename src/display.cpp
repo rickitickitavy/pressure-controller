@@ -22,15 +22,20 @@ bool gSettingsLayout = false;
 
 // Main screen contiguous bands (320px).
 constexpr int kYMax = 0;
-constexpr int kHMax = 80;
-constexpr int kYCurrent = 80;
-constexpr int kHCurrent = 96;
-constexpr int kYPump = 176;
-constexpr int kHPump = 56;
-constexpr int kYMin = 232;
-constexpr int kHMin = 88;
+constexpr int kHMax = 52;      // was 64; shortened so current can move up 12
+constexpr int kYCurrent = 52;  // was 64; up 12
+constexpr int kHCurrent = 106;
+constexpr int kYPump = 158;    // was 170; up 12
+constexpr int kHPump = 100;
+constexpr int kYMin = 258;
+constexpr int kHMin = 62;      // was 70; -8
 
 constexpr uint16_t kDarkGreen = 0x0400;
+constexpr uint16_t kPumpOffGray = 0x8410;
+constexpr int kPumpIconW = 112;
+constexpr int kPumpIconH = 78;
+// Top of pump band → icon y=159 (12px above previous centered y=171).
+constexpr int kPumpIconPadY = 1;
 
 // Settings screen: 5 equal rows.
 constexpr int kSettingsRowH = 64;
@@ -40,6 +45,27 @@ static_assert(kYCurrent + kHCurrent == kYPump, "gap current/pump");
 static_assert(kYPump + kHPump == kYMin, "gap pump/min");
 static_assert(kYMin + kHMin == TFT_HEIGHT, "min must reach bottom");
 static_assert(kSettingsRowH * 5 == TFT_HEIGHT, "settings rows must fill height");
+
+const int16_t pump_x[] = {32, 47, 22, 89, 98, 11, 0, 38};
+const int16_t pump_w[] = {40, 10, 66, 8, 14, 10, 10, 50};
+const int16_t pump_y[] = {0, 8, 18, 38, 23, 43, 28, 68};
+const int16_t pump_h[] = {8, 10, 50, 20, 50, 10, 40, 10};
+
+void drawPump(int16_t x, int16_t y, uint16_t color) {
+  for (int index = 0; index < 8; index++) {
+    tft.fillRect(x + pump_x[index], y + pump_y[index], pump_w[index], pump_h[index],
+                 color);
+  }
+
+  tft.fillTriangle(x + 22, y + 18, x + 32, y + 18, x + 22, y + 28, ST77XX_BLACK);
+  tft.fillTriangle(x + 38, y + 69, x + 47, y + 78, x + 38, y + 78, ST77XX_BLACK);
+}
+
+void drawPump(uint16_t color) {
+  const int16_t x = static_cast<int16_t>((TFT_WIDTH - kPumpIconW) / 2);
+  const int16_t y = static_cast<int16_t>(kYPump + kPumpIconPadY);
+  drawPump(x, y, color);
+}
 
 // #region agent log
 void dbgLog(const char* hypothesisId, const char* message, int fillScreen,
@@ -58,7 +84,7 @@ float toAtm(float mpa) {
 }
 
 void drawBar(int y, int h, const char* text, uint16_t fg, uint16_t bg,
-             const GFXfont* font) {
+             const GFXfont* font, bool centerH = false) {
   tft.fillRect(0, y, TFT_WIDTH, h, bg);
   tft.setFont(font);
   tft.setTextSize(1);
@@ -78,7 +104,8 @@ void drawBar(int y, int h, const char* text, uint16_t fg, uint16_t bg,
     baseline = y + static_cast<int>(th);
   }
 
-  tft.setCursor(6, baseline);
+  const int x = centerH ? ((TFT_WIDTH - static_cast<int>(tw)) / 2 - x1) : 6;
+  tft.setCursor(x, baseline);
   tft.print(text);
   tft.setFont(nullptr);
 }
@@ -95,13 +122,13 @@ void drawMax(const UiState& state) {
 void drawCurrent(const UiState& state) {
   char buf[24];
   snprintf(buf, sizeof(buf), "%.2f", toAtm(state.pressureMpa));
-  drawBar(kYCurrent, kHCurrent, buf, ST77XX_CYAN, ST77XX_BLACK, &FreeSansBold24pt7b);
+  drawBar(kYCurrent, kHCurrent, buf, ST77XX_CYAN, ST77XX_BLACK, &FreeSansBold24pt7b,
+          true);
 }
 
 void drawPump(const UiState& state) {
-  const char* text = state.pumpOn ? "ON" : "OFF";
-  const uint16_t fg = state.pumpOn ? ST77XX_GREEN : ST77XX_WHITE;
-  drawBar(kYPump, kHPump, text, fg, ST77XX_BLACK, &FreeSansBold18pt7b);
+  tft.fillRect(0, kYPump, TFT_WIDTH, kHPump, ST77XX_BLACK);
+  drawPump(state.pumpOn ? ST77XX_GREEN : kPumpOffGray);
 }
 
 void drawMin(const UiState& state) {
