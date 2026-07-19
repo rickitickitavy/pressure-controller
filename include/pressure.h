@@ -3,9 +3,9 @@
 #include <Arduino.h>
 
 namespace Pressure {
+    void begin(int pin);
 
-void begin(int pin);
-void setSensorMaxMpa(float sensorMaxMpa);
-float readMpa();  // averaged reading in MPa
+    void setSensorMaxMpa(float sensorMaxMpa);
 
-}  // namespace Pressure
+    float readMpa(); // averaged reading in MPa
+} // namespace Pressure
