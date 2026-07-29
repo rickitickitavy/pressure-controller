@@ -15,8 +15,7 @@ WiFiController::WiFiController(SettingsManager *settingsManager, bool forceAp) {
 }
 
 bool WiFiController::isApMode() const {
-    const wifi_mode_t mode = WiFi.getMode();
-    return mode == WIFI_AP || mode == WIFI_AP_STA;
+    return apActive;
 }
 
 String WiFiController::getTextErrorStatus() {
@@ -70,12 +69,134 @@ void WiFiController::startAp(const String& deviceName) {
     delay(200);
 
     if (ok) {
-        LOGGER.info("WiFi AP started");
+        apActive = true;
+        apStartedMs = millis();
+        LOGGER.info("WiFi AP started (auto-off in 5 min)");
     } else {
+        apActive = false;
         LOGGER.error("WiFi softAP FAILED");
     }
     LOGGER.info("SSID: " + String(WiFi.softAPSSID()));
     LOGGER.info("AP IP: " + WiFi.softAPIP().toString());
+}
+
+void WiFiController::stopAp() {
+    if (!apActive) {
+        return;
+    }
+    LOGGER.warning("Stopping WiFi AP mode...");
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(300);
+    apActive = false;
+}
+
+void WiFiController::onStaConnected() {
+    // Auto-reconnect / association often re-enables modem sleep and resets TX power,
+    // leaving the device "connected" but unreachable (ping fails).
+    WiFi.setSleep(false);
+    WiFi.setTxPower(WIFI_POWER_15dBm);
+    LOGGER.info("STA ready. IP " + WiFi.localIP().toString() +
+                ", GW " + WiFi.gatewayIP().toString() +
+                ", RSSI " + String(WiFi.RSSI()) + " dBm");
+}
+
+void WiFiController::reconnectSta() {
+    GlobalSettings *settings = settingsManager->getSettings();
+
+    LOGGER.warning("STA reconnecting to '" + String(settings->network.ssid) + "'...");
+
+    WiFi.setSleep(false);
+    // Drop association but keep mode; force a fresh DHCP lease so the router
+    // does not keep a stale ARP entry for an IP we no longer own cleanly.
+    WiFi.disconnect(false, false);
+    delay(100);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.begin(settings->network.ssid, settings->network.password);
+    WiFi.setTxPower(WIFI_POWER_15dBm);
+}
+
+void WiFiController::startSta(const String& deviceName) {
+    GlobalSettings *settings = settingsManager->getSettings();
+
+    WiFi.persistent(false);
+    WiFi.disconnect(true, true);
+    WiFi.mode(WIFI_OFF);
+    delay(500);
+
+    WiFi.mode(WIFI_STA);
+    delay(200);
+    WiFi.setSleep(false);
+    // Manual reconnect in update() — autoReconnect can leave STA associated
+    // without a working IP stack (device unreachable by ping).
+    WiFi.setAutoReconnect(false);
+    WiFi.setHostname(deviceName.c_str());
+
+        LOGGER.info("Connecting to SSID '" + String(settings->network.ssid) + "'...");
+        WiFi.begin(settings->network.ssid, settings->network.password);
+        // Many ESP32-C3 boards (SuperMini / weak LDO / antenna) need reduced TX power.
+        WiFi.setTxPower(WIFI_POWER_8_5dBm);
+
+    const unsigned long timeoutMs = 20000;
+    const unsigned long startedAt = millis();
+    wl_status_t lastStatus = WL_IDLE_STATUS;
+    while (!WiFi.isConnected() && (millis() - startedAt < timeoutMs)) {
+        const wl_status_t status = WiFi.status();
+        if (status != lastStatus) {
+            lastStatus = status;
+            LOGGER.info("WiFi status:" + getTextErrorStatus());
+        }
+        delay(100);
+    }
+    if (!WiFi.isConnected() || WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+        LOGGER.error("Not connected. " + getTextErrorStatus() + ". Staying in STA mode (no AP fallback).");
+        staWasConnected = false;
+    } else {
+        onStaConnected();
+        staWasConnected = true;
+        Serial.println("Connected to router.");
+        Serial.println("local IP " + WiFi.localIP().toString());
+        Serial.println("hostname " + deviceName);
+    }
+    lastStaReconnectMs = millis();
+}
+
+void WiFiController::update() {
+    if (apActive) {
+        if ((millis() - apStartedMs) < kApTimeoutMs) {
+            return;
+        }
+
+        LOGGER.warning("AP 5-minute timeout expired");
+        const String deviceName = String(settingsManager->getSettings()->mqttDeviceName);
+        stopAp();
+        startSta(deviceName);
+        LOGGER.info("IP " + (WiFi.isConnected() ? WiFi.localIP().toString() : String("0.0.0.0")));
+        return;
+    }
+
+    // STA keep-alive / recovery (not used while AP is up).
+    const bool connected =
+            WiFi.isConnected() && (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+
+    if (connected) {
+        if (!staWasConnected) {
+            onStaConnected();
+        }
+        staWasConnected = true;
+        return;
+    }
+
+    if (staWasConnected) {
+        LOGGER.warning("STA link lost" + getTextErrorStatus());
+        staWasConnected = false;
+    }
+
+    if ((millis() - lastStaReconnectMs) < kStaReconnectMs) {
+        return;
+    }
+    lastStaReconnectMs = millis();
+    reconnectSta();
 }
 
 void WiFiController::init() {
@@ -87,43 +208,7 @@ void WiFiController::init() {
     if (forceAp) {
         startAp(deviceName);
     } else {
-        // Clean STA start — ESP32-C3 is sensitive to leftover WiFi state / TX power.
-        WiFi.persistent(false);
-        WiFi.disconnect(true, true);
-        WiFi.mode(WIFI_OFF);
-        delay(500);
-
-        WiFi.mode(WIFI_STA);
-        delay(200);
-        WiFi.setSleep(false);
-        WiFi.setHostname(deviceName.c_str());
-
-        LOGGER.info("Connecting to SSID '" + String(settings->network.ssid) + "'...");
-        WiFi.begin(settings->network.ssid, settings->network.password);
-        // Many ESP32-C3 boards (SuperMini / weak LDO / antenna) need reduced TX power.
-        WiFi.setTxPower(WIFI_POWER_8_5dBm);
-
-        const unsigned long timeoutMs = 20000;
-        const unsigned long startedAt = millis();
-        wl_status_t lastStatus = WL_IDLE_STATUS;
-        while (!WiFi.isConnected() && (millis() - startedAt < timeoutMs)) {
-            const wl_status_t status = WiFi.status();
-            if (status != lastStatus) {
-                lastStatus = status;
-                LOGGER.info("WiFi status:" + getTextErrorStatus());
-            }
-            delay(100);
-        }
-        if (!WiFi.isConnected()) {
-            LOGGER.error("Not connected. " + getTextErrorStatus() + ". Staying in STA mode (no AP fallback).");
-        } else {
-            // Re-apply after association — some stacks reset TX power on connect.
-            WiFi.setTxPower(WIFI_POWER_8_5dBm);
-            Serial.println("Connected to router.");
-            Serial.println("local IP " + WiFi.localIP().toString());
-            Serial.println("hostname " + deviceName);
-            LOGGER.info("RSSI: " + String(WiFi.RSSI()) + " dBm, TX power: " + String(WiFi.getTxPower()));
-        }
+        startSta(deviceName);
     }
 
     LOGGER.info("IP " + (isApMode() ? WiFi.softAPIP() : WiFi.localIP()).toString());

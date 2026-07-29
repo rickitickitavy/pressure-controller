@@ -2,6 +2,7 @@
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
+#include <Fonts/FreeSansBold9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
@@ -112,6 +113,94 @@ namespace {
         snprintf(buf, sizeof(buf), "%.2f", toAtm(state.pressureMpa));
         drawBar(kYCurrent, kHCurrent, buf, ST77XX_CYAN, ST77XX_BLACK, &FreeSansBold24pt7b,
                 true);
+    }
+
+    // Native 32x32 WiFi glyph (1bpp, 4 bytes/row, MSB left). Drawn 1:1 — no scaling.
+    constexpr int kWifiIconSize = 32;
+    // FreeSansBold9pt baseline advance ~12–14px; keep room under the icon.
+    constexpr int kWifiLabelH = 16;
+    constexpr int kWifiBlockW = kWifiIconSize;
+    constexpr int kWifiBlockH = kWifiIconSize + kWifiLabelH;
+
+    constexpr uint8_t kWifiIconBitmap[128] = {
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x07, 0xE0, 0x00,
+        0x00, 0x3F, 0xFC, 0x00,
+        0x00, 0xF8, 0x1F, 0x00,
+        0x03, 0xC0, 0x03, 0xC0,
+        0x07, 0x00, 0x00, 0xE0,
+        0x0C, 0x00, 0x00, 0x30,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x1F, 0xF8, 0x00,
+        0x00, 0x7F, 0xFE, 0x00,
+        0x00, 0xF0, 0x0F, 0x00,
+        0x01, 0xC0, 0x03, 0x80,
+        0x03, 0x00, 0x00, 0xC0,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x07, 0xE0, 0x00,
+        0x00, 0x1F, 0xF8, 0x00,
+        0x00, 0x38, 0x1C, 0x00,
+        0x00, 0x60, 0x06, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x03, 0xC0, 0x00,
+        0x00, 0x07, 0xE0, 0x00,
+        0x00, 0x0C, 0x30, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x01, 0x80, 0x00,
+        0x00, 0x03, 0xC0, 0x00,
+        0x00, 0x03, 0xC0, 0x00,
+        0x00, 0x01, 0x80, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+    };
+
+    void wifiIconOrigin(int16_t &x, int16_t &y) {
+        const int16_t pumpX = static_cast<int16_t>((TFT_WIDTH - kPumpIconW) / 2);
+        const int16_t pumpY = static_cast<int16_t>(kYPump + kPumpIconPadY);
+        x = static_cast<int16_t>(pumpX + kPumpIconW + 4) + 12;
+        // Vertically center icon+optional label block with the pump icon.
+        y = static_cast<int16_t>(pumpY + (kPumpIconH - kWifiBlockH) / 2);
+    }
+
+    void drawWifiIcon(int16_t x, int16_t y, uint16_t color) {
+        for (int row = 0; row < kWifiIconSize; ++row) {
+            const uint8_t *rowBytes = &kWifiIconBitmap[row * 4];
+            for (int col = 0; col < kWifiIconSize; ++col) {
+                const uint8_t byte = rowBytes[col >> 3];
+                if (byte & (0x80 >> (col & 7))) {
+                    tft.drawPixel(x + col, y + row, color);
+                }
+            }
+        }
+    }
+
+    void drawWifiStatus(const UiState &state) {
+        int16_t x = 0;
+        int16_t y = 0;
+        wifiIconOrigin(x, y);
+        tft.fillRect(x, y, kWifiBlockW, kWifiBlockH, ST77XX_BLACK);
+        if (!state.wifiIcon) {
+            return;
+        }
+        drawWifiIcon(x, y, ST77XX_BLUE);
+        if (state.apMode) {
+            constexpr const char *kLabel = "AP";
+            tft.setFont(&FreeSansBold9pt7b);
+            tft.setTextSize(1);
+            tft.setTextColor(ST77XX_BLUE);
+            int16_t x1 = 0;
+            int16_t y1 = 0;
+            uint16_t tw = 0;
+            uint16_t th = 0;
+            tft.getTextBounds(kLabel, 0, 0, &x1, &y1, &tw, &th);
+            const int16_t baseline = static_cast<int16_t>(y + kWifiIconSize + th);
+            tft.setCursor(x + (kWifiBlockW - static_cast<int>(tw)) / 2 - x1, baseline);
+            tft.print(kLabel);
+            tft.setFont(nullptr);
+        }
     }
 
     void drawPump(const UiState &state) {
@@ -237,10 +326,12 @@ namespace Display {
         const bool redrawCur =
                 first || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f);
         const bool redrawPump = first || gLast.pumpOn != state.pumpOn;
+        const bool redrawWifi =
+                first || gLast.wifiIcon != state.wifiIcon || gLast.apMode != state.apMode;
         const bool redrawMin =
                 first || !nearlyEq(gLast.minMpa, state.minMpa, 0.0005f) || hlMin != wasHlMin;
 
-        if (!redrawMax && !redrawCur && !redrawPump && !redrawMin) {
+        if (!redrawMax && !redrawCur && !redrawPump && !redrawWifi && !redrawMin) {
             return;
         }
 
@@ -253,11 +344,18 @@ namespace Display {
         if (redrawPump) {
             drawPump(state);
         }
+        if (redrawWifi) {
+            drawWifiStatus(state);
+        }
         if (redrawMin) {
             drawMin(state);
         }
 
         gLast = state;
         gHasLast = true;
+    }
+
+    void invalidateWifi() {
+        gLast.wifiIcon = false;
     }
 } // namespace Display

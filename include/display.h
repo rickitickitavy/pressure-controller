@@ -27,6 +27,8 @@ struct UiState {
     float minMpa = 0.2f;
     float maxMpa = 0.35f;
     bool pumpOn = false;
+    bool wifiIcon = false; // AP active or STA connected
+    bool apMode = false;   // show "AP" under WiFi icon
     PressureSettings draft{};
     SettingsFocus focus = SettingsFocus::Leak;
 };
@@ -35,4 +37,6 @@ namespace Display {
     void begin();
 
     void render(const UiState &state);
+
+    void invalidateWifi();
 } // namespace Display

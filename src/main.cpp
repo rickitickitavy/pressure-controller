@@ -32,6 +32,7 @@ namespace {
     WiFiController *wiFiController;
     MqttClient *mqtt;
     bool gOtaEnabled = false;
+    bool gLastWifiConnected = false;
 
     void setPump(bool on) {
         if (on == gPumpOn) {
@@ -310,12 +311,12 @@ void setup() {
     wiFiController = new WiFiController(settingsManager, forceAp);
     LOGGER.info("WiFi controller started");
 
-    if (WiFi.isConnected()) {
+    if (WiFi.isConnected() || wiFiController->isApMode()) {
         ArduinoOTA.begin();
         gOtaEnabled = true;
         LOGGER.info("OTA started");
     } else {
-        LOGGER.info("OTA skipped (WiFi not connected)");
+        LOGGER.info("OTA skipped (WiFi not connected / not AP)");
     }
 
     if (wiFiController->isApMode()) {
@@ -336,9 +337,29 @@ void setup() {
 void loop() {
     Encoder::update();
 
+    wiFiController->update();
+    const bool isAp = wiFiController->isApMode();
+
+    // OTA while STA connected or AP is up; restart OTA if AP timed out into STA.
+    const bool otaWanted = WiFi.isConnected() || isAp;
+    if (otaWanted && !gOtaEnabled) {
+        ArduinoOTA.begin();
+        gOtaEnabled = true;
+        LOGGER.info("OTA started");
+    } else if (!otaWanted && gOtaEnabled) {
+        gOtaEnabled = false;
+        LOGGER.info("OTA stopped");
+    }
     if (gOtaEnabled) {
         ArduinoOTA.handle();
     }
+
+    // Start MQTT once STA has a link (boot miss, AP timeout, or later reconnect).
+    if (!isAp && mqtt == nullptr && WiFi.isConnected()) {
+        mqtt = new MqttClient(settingsManager->getSettings());
+        LOGGER.info("MQTT client started");
+    }
+
     if (mqtt != nullptr) {
         mqtt->dispatch();
     }
@@ -370,14 +391,25 @@ void loop() {
     const unsigned long now = millis();
     if ((now - gLastDisplayMs) >= kDisplayMs) {
         gLastDisplayMs = now;
+
+        const bool wifiConnected = WiFi.isConnected();
+        const bool wifiReconnected = wifiConnected && !gLastWifiConnected;
+        gLastWifiConnected = wifiConnected;
+
         UiState ui;
         ui.mode = gMode;
         ui.pressureMpa = pressure;
         ui.minMpa = gSettings.minMpa;
         ui.maxMpa = gSettings.maxMpa;
         ui.pumpOn = gPumpOn;
+        ui.apMode = wiFiController->isApMode();
+        ui.wifiIcon = ui.apMode || wifiConnected;
         ui.draft = gDraft;
         ui.focus = gFocus;
+
+        if (wifiReconnected) {
+            Display::invalidateWifi();
+        }
         Display::render(ui);
     }
 }
