@@ -5,7 +5,7 @@ todos:
     content: "Add ST7789/GFX libs to platformio.ini and create pins.h with GPIO map"
     status: completed
   - id: "settings"
-    content: "Implement Preferences load/save for min/max/LEAK/WEAK/SENS with defaults and clamp rules"
+    content: "Implement EEPROM SettingsManager for min/max/LEAK/WEAK/SENS with defaults and clamp rules"
     status: completed
   - id: "encoder"
     content: "Implement encoder A/B + button debounce and 0.001 MPa step editing"
@@ -18,6 +18,9 @@ todos:
     status: completed
   - id: "main-fsm"
     content: "Run/EditMax/EditMin/Settings/Fail FSM; idle timeouts; Fail locks until reboot"
+    status: completed
+  - id: "wifi-mqtt"
+    content: "WiFi STA/AP, LittleFS web UI, OTA, MQTT client scaffold on feature/add-mqtt-connection"
     status: completed
 isProject: false
 ---
@@ -36,6 +39,7 @@ Prefer [`HANDOFF.md`](HANDOFF.md) as the live truth; this plan tracks the intend
 | Pump relay/control | 9 |
 | ST7789 MOSI (SDA) | 6 |
 | ST7789 SCLK (SCL) | 4 |
+| ST7789 MISO | 5 (unused) |
 | ST7789 CS | 7 |
 | ST7789 DC | 2 |
 | ST7789 RST | 3 |
@@ -64,7 +68,7 @@ stateDiagram-v2
 - **Button cycle:** short press → Edit max → Edit min → Run.
 - **Edit max / edit min:** rotate ±0.001 MPa; clamp with `min < max` against sensor range; idle **5 s** without button **or rotation** → save if dirty → Run.
 - **SETTINGS:** hold ≥ 3 s; rows LEAK / WEAK / SENS / SAVE / CANCEL; idle 10 s cancels.
-- Persist min/max and advanced settings via ESP32 `Preferences`/NVS.
+- Persist min/max and advanced settings via **EEPROM** (`SettingsManager`), together with network/MQTT fields in `GlobalSettings`.
 
 ### Pump watches (after each pump ON)
 
@@ -83,21 +87,35 @@ On **Fail**:
 - ADC **4095** → `sensorMaxMpa` (default 0.5 MPa = 5 Atm; editable as SENS).
 - UI shows atmospheres: `mpa / 0.1`.
 
+## Networking (added on `feature/add-mqtt-connection`)
+
+- **WiFi STA** with reconnect; **AP** if encoder button held at boot (5 min timeout).
+- **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT parameters.
+- **ArduinoOTA** while STA or AP is up.
+- **MQTT** scaffold: connect, publish alive, subscribe to commands — publish/command handling still TODO.
+
+Details: [`HANDOFF.md`](HANDOFF.md).
+
 ## Software structure
 
 Arduino + PlatformIO on `esp32-c3-devkitc-02` at  
 `/home/dsporynkhin/Projects/cpp/home/presure-controller`.
 
-- [`platformio.ini`](../platformio.ini) — Adafruit GFX / ST7789 / BusIO.
+- [`platformio.ini`](../platformio.ini) — Adafruit GFX / ST7789 / BusIO, AsyncTCP, ESPAsyncWebServer, PubSubClient; LittleFS.
 - [`include/pins.h`](../include/pins.h) — GPIOs and display size.
-- [`include/settings.h`](../include/settings.h) / [`src/settings.cpp`](../src/settings.cpp) — NVS load/save.
+- [`src/GlobalSettings.h`](../src/GlobalSettings.h) — settings schema + pressure constants.
+- [`src/SettingsManager.*`](../src/SettingsManager.cpp) — EEPROM load/save.
+- [`src/SettingsNavigator.*`](../src/SettingsNavigator.cpp) — named parameter API for web UI.
 - [`src/encoder.cpp`](../src/encoder.cpp) — quadrature + short / 1 s / 3 s hold.
-- [`src/display.cpp`](../src/display.cpp) — ST7789 bands + pump icon + SETTINGS/FAIL.
-- [`src/main.cpp`](../src/main.cpp) — FSM, control, timeouts.
+- [`src/display.cpp`](../src/display.cpp) — ST7789 bands + pump/WiFi icons + SETTINGS/FAIL.
+- [`src/WiFiController.*`](../src/WiFiController.cpp) — STA/AP + reconnect.
+- [`src/WebServerController.*`](../src/WebServerController.cpp) — HTTP + LittleFS.
+- [`src/MqttClient.*`](../src/MqttClient.cpp) — PubSubClient wrapper.
+- [`src/main.cpp`](../src/main.cpp) — FSM, control, timeouts, OTA/MQTT lifecycle.
 
 ## UI (main screen)
 
-Top → bottom bands: **MAX** → **Current** (centered) → **Pump icon** (green ON / gray OFF) → **MIN**.  
+Top → bottom bands: **MAX** → **Current** (centered) → **Pump icon** (green ON / gray OFF) + **WiFi icon** → **MIN**.  
 Edit highlight: black on yellow. Fail: FAIL + pressure + Reboot hint.
 
 ## Control loop notes

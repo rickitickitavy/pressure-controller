@@ -10,6 +10,8 @@ isProject: false
 
 ## Status: done
 
+Still valid under the current tree (SettingsManager / WiFi stack). Prefer [`HANDOFF.md`](HANDOFF.md) for full project context.
+
 In [`src/main.cpp`](../src/main.cpp), edit idle uses `gLastActivityMs`. Both button presses and encoder rotation refresh it:
 
 - Button path sets `gLastActivityMs = millis()` when entering/cycling edit.
