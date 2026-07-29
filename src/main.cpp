@@ -1,10 +1,14 @@
 #include <Arduino.h>
+#include <ArduinoOTA.h>
 
 #include "display.h"
 #include "encoder.h"
 #include "pins.h"
 #include "pressure.h"
 #include "settings.h"
+#include <LittleFS.h>
+#include "WiFiController.h"
+#include "MqttClient.h"
 
 namespace {
     constexpr unsigned long kEditIdleMs = 5000;
@@ -23,6 +27,10 @@ namespace {
     unsigned long gAwaitingMinSinceMs = 0;
     bool gAwaitingMin = false;
     unsigned long gLastDisplayMs = 0;
+
+    SettingsManager *settingsManager;
+    WiFiController *wiFiController;
+    MqttClient *mqtt;
 
     void setPump(bool on) {
         if (on == gPumpOn) {
@@ -261,7 +269,15 @@ namespace {
 } // namespace
 
 void setup() {
+#ifdef CON_DEBUG
+    delay(500);
+
     Serial.begin(115200);
+    Serial.println("--- Starting ");
+
+    LOGGER.info("Started UART at 115200");
+#endif
+    LOGGER.info("Starting...");
 
     pinMode(PIN_PUMP, OUTPUT);
     digitalWrite(PIN_PUMP, LOW);
@@ -275,12 +291,33 @@ void setup() {
     Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
     Display::begin();
 
+    if (!LittleFS.begin(false)) {
+        LOGGER.error("LittleFS mount failed");
+    } else {
+        LOGGER.info("LittleFS mounted");
+    }
+
+    settingsManager = new SettingsManager();
+    LOGGER.info("Setting manager started");
+
+    wiFiController = new WiFiController(settingsManager);
+    LOGGER.info("WiFi controller started");
+
+    ArduinoOTA.begin();
+    LOGGER.info("OTA started");
+
+    mqtt = new MqttClient(settingsManager->getSettings());
+    LOGGER.info("MQTT client started");
+
     gLastActivityMs = millis();
     Serial.println("Pump controller ready");
 }
 
 void loop() {
     Encoder::update();
+
+    ArduinoOTA.handle();
+    mqtt->dispatch();
 
     if (gMode == UiMode::Fail) {
         (void) Encoder::consumePress();
