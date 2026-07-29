@@ -53,10 +53,14 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            31,
                                                                            (void *) &settings->topicTheDeviceIsAlive[0],
                                                                            (void *) &settings->topicTheDeviceIsAlive[0]);
-    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>topicTheDeviceState", STRING, 2,
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>topicThePumpState", STRING, 2,
                                                                            31,
-                                                                           (void *) &settings->topicTheDeviceState[0],
-                                                                           (void *) &settings->topicTheDeviceState[0]);
+                                                                           (void *) &settings->topicThePumpState[0],
+                                                                           (void *) &settings->topicThePumpState[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>topicPressureValue", STRING, 2,
+                                                                           31,
+                                                                           (void *) &settings->topicPressureValue[0],
+                                                                           (void *) &settings->topicPressureValue[0]);
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>topicToListenCommands", STRING, 2,
                                                                            31,
                                                                            (void *) &settings->topicToListenCommands[0],

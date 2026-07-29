@@ -25,6 +25,8 @@ private:
      */
     void readSettings();
 
+    void applyPressureDefaults();
+
 public:
     SettingsManager();
 
@@ -55,6 +57,15 @@ public:
      * @param restart
      */
     void saveSetting(GlobalSettings* settingsToSave, bool restart);
+
+    /**
+     * Save pump/pressure settings into EEPROM (no restart)
+     */
+    void savePressure(const PressureSettings& pressure);
+
+    static void clampAdvanced(PressureSettings& s);
+
+    static void clampPair(float& minMpa, float& maxMpa, float sensorMaxMpa);
 
     /**
      * Сброс настроек WiFi в дефолтовые

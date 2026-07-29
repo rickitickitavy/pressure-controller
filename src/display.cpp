@@ -9,7 +9,7 @@
 #include <cmath>
 
 #include "pins.h"
-#include "settings.h"
+#include "GlobalSettings.h"
 
 namespace {
     SPIClass spiTft(FSPI);
@@ -169,7 +169,7 @@ namespace {
 
 namespace Display {
     void begin() {
-        spiTft.begin(PIN_TFT_SCLK, -1 /* MISO unused */, PIN_TFT_MOSI, PIN_TFT_CS);
+        spiTft.begin(PIN_TFT_SCLK, PIN_TFT_MISO, PIN_TFT_MOSI, PIN_TFT_CS);
         tft.init(TFT_WIDTH, TFT_HEIGHT);
         // #region agent log
         constexpr uint8_t kRotation = 2;

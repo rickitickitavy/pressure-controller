@@ -1,6 +1,6 @@
 #include "pressure.h"
 
-#include "settings.h"
+#include "GlobalSettings.h"
 
 namespace {
     int gPin = -1;

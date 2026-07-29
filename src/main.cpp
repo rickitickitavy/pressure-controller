@@ -5,8 +5,8 @@
 #include "encoder.h"
 #include "pins.h"
 #include "pressure.h"
-#include "settings.h"
 #include <LittleFS.h>
+#include "SettingsManager.h"
 #include "WiFiController.h"
 #include "MqttClient.h"
 
@@ -31,6 +31,7 @@ namespace {
     SettingsManager *settingsManager;
     WiFiController *wiFiController;
     MqttClient *mqtt;
+    bool gOtaEnabled = false;
 
     void setPump(bool on) {
         if (on == gPumpOn) {
@@ -55,7 +56,7 @@ namespace {
 
     void leaveEditToRun() {
         if (gThresholdsDirty) {
-            Settings::save(gSettings);
+            settingsManager->savePressure(gSettings);
             gThresholdsDirty = false;
         }
         gMode = UiMode::Run;
@@ -63,7 +64,7 @@ namespace {
 
     void enterSettings() {
         if (gThresholdsDirty) {
-            Settings::save(gSettings);
+            settingsManager->savePressure(gSettings);
             gThresholdsDirty = false;
         }
         gDraft = gSettings;
@@ -85,9 +86,10 @@ namespace {
         gSettings.leakDetectSec = gDraft.leakDetectSec;
         gSettings.pumpWeakSec = gDraft.pumpWeakSec;
         gSettings.sensorMaxMpa = gDraft.sensorMaxMpa;
-        Settings::clampAdvanced(gSettings);
-        Settings::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
-        Settings::save(gSettings);
+        SettingsManager::clampAdvanced(gSettings);
+        SettingsManager::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
+        settingsManager->savePressure(gSettings);
+        gSettings = settingsManager->getSettings()->pressure;
         Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
         gDraft = gSettings;
         gMode = UiMode::Run;
@@ -113,7 +115,7 @@ namespace {
         } else {
             return;
         }
-        Settings::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
+        SettingsManager::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
         gThresholdsDirty = true;
     }
 
@@ -148,7 +150,7 @@ namespace {
             }
             case SettingsFocus::SensorMax:
                 gDraft.sensorMaxMpa += static_cast<float>(steps) * SENSOR_MAX_STEP_MPA;
-                Settings::clampAdvanced(gDraft);
+                SettingsManager::clampAdvanced(gDraft);
                 break;
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
@@ -282,15 +284,6 @@ void setup() {
     pinMode(PIN_PUMP, OUTPUT);
     digitalWrite(PIN_PUMP, LOW);
 
-    Settings::begin();
-    gSettings = Settings::load();
-    gDraft = gSettings;
-    Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
-
-    Pressure::begin(PIN_PRESSURE);
-    Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
-    Display::begin();
-
     if (!LittleFS.begin(false)) {
         LOGGER.error("LittleFS mount failed");
     } else {
@@ -300,14 +293,41 @@ void setup() {
     settingsManager = new SettingsManager();
     LOGGER.info("Setting manager started");
 
-    wiFiController = new WiFiController(settingsManager);
+    gSettings = settingsManager->getSettings()->pressure;
+    gDraft = gSettings;
+    Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
+
+    Pressure::begin(PIN_PRESSURE);
+    Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
+    Display::begin();
+
+    delay(50);
+    const bool forceAp = digitalRead(PIN_ENCODER_BTN) == LOW;
+    if (forceAp) {
+        LOGGER.info("Encoder button held at boot — WiFi AP mode requested");
+    }
+
+    wiFiController = new WiFiController(settingsManager, forceAp);
     LOGGER.info("WiFi controller started");
 
-    ArduinoOTA.begin();
-    LOGGER.info("OTA started");
+    if (WiFi.isConnected()) {
+        ArduinoOTA.begin();
+        gOtaEnabled = true;
+        LOGGER.info("OTA started");
+    } else {
+        LOGGER.info("OTA skipped (WiFi not connected)");
+    }
 
-    mqtt = new MqttClient(settingsManager->getSettings());
-    LOGGER.info("MQTT client started");
+    if (wiFiController->isApMode()) {
+        mqtt = nullptr;
+        LOGGER.info("MQTT client skipped (WiFi AP mode)");
+    } else if (!WiFi.isConnected()) {
+        mqtt = nullptr;
+        LOGGER.info("MQTT client skipped (WiFi STA not connected)");
+    } else {
+        mqtt = new MqttClient(settingsManager->getSettings());
+        LOGGER.info("MQTT client started");
+    }
 
     gLastActivityMs = millis();
     Serial.println("Pump controller ready");
@@ -316,8 +336,12 @@ void setup() {
 void loop() {
     Encoder::update();
 
-    ArduinoOTA.handle();
-    mqtt->dispatch();
+    if (gOtaEnabled) {
+        ArduinoOTA.handle();
+    }
+    if (mqtt != nullptr) {
+        mqtt->dispatch();
+    }
 
     if (gMode == UiMode::Fail) {
         (void) Encoder::consumePress();

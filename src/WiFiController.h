@@ -13,12 +13,17 @@ class WiFiController {
 private:
     SettingsManager* settingsManager;
     WebServerController* serverController;
+    bool forceAp;
 
     void init();
 
     String getTextErrorStatus();
+
+    void startAp(const String& deviceName);
 public:
-    WiFiController(SettingsManager* settingsManager);
+    WiFiController(SettingsManager* settingsManager, bool forceAp);
+
+    bool isApMode() const;
 };
 
 // extern WiFiController* wiFiController;

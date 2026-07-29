@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#include "settings.h"
+#include "GlobalSettings.h"
 
 enum class UiMode : uint8_t {
     Run = 0,

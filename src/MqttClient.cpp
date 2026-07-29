@@ -22,6 +22,9 @@ MqttClient::MqttClient(GlobalSettings *settings) {
 }
 
 void MqttClient::checkConnection() {
+    if (!WiFi.isConnected()) {
+        return;
+    }
     if ((lastCheckTime == 0)
         || ((millis() - lastCheckTime) > 100)) {
         lastCheckTime = millis();
