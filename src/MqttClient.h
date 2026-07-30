@@ -10,6 +10,10 @@
 #include <WiFi.h>
 
 class MqttClient {
+public:
+    using PumpControlFn = void (*)(bool enabled);
+    using MessageCallback = void (*)(char *topic, byte *payload, unsigned int length);
+
 private:
     int port;
     String server;
@@ -18,17 +22,42 @@ private:
     GlobalSettings *settings;
     long lastReconnectTime;
     long lastCheckTime;
-    static void callback(char* topic, byte* payload, unsigned int length);
+
+    PumpControlFn pumpControlHandler = nullptr;
+
+    String topicPumpState;
+    String topicPressure;
+    String topicCommands;
+
+    float lastPublishedPressureAtm = 0.0f;
+    bool hasPublishedPressure = false;
+    bool forcePublishBootstrap = false;
+
+    // Pending runtime snapshot for bootstrap publish from callback / reconnect.
+    bool pendingPumpOn = false;
+    float pendingPressureMpa = 0.0f;
 
     void reconnect();
-
     void checkConnection();
+    void handleMessage(const String &topic, const String &payload);
+    void publishAlive();
+    void publishState(bool pumpOn);
+    void publishPressure(float pressureMpa, bool force);
+    void publishBootstrap();
 
 public:
-
     MqttClient(GlobalSettings *settings);
 
-    void dispatch();
+    void setPumpControlHandler(PumpControlFn fn);
+    void setMessageCallback(MessageCallback cb);
+
+    /** Forward PubSubClient C-callback payloads into command / rebirth handling. */
+    void onMessage(char *topic, byte *payload, unsigned int length);
+
+    /** Publish pump ON/OFF when the relay state actually changes (not from dispatch polling). */
+    void notifyPumpState(bool pumpOn);
+
+    void dispatch(bool pumpOn, float pressureMpa);
 };
 
 

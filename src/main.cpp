@@ -33,6 +33,7 @@ namespace {
     MqttClient *mqtt;
     bool gOtaEnabled = false;
     bool gLastWifiConnected = false;
+    bool gPumpControlEnabled = true;
 
     void setPump(bool on) {
         if (on == gPumpOn) {
@@ -46,6 +47,9 @@ namespace {
             gAwaitingMinSinceMs = millis();
         } else {
             gAwaitingMin = false;
+        }
+        if (mqtt != nullptr) {
+            mqtt->notifyPumpState(on);
         }
     }
 
@@ -223,7 +227,7 @@ namespace {
             return;
         }
 
-        if (!gPumpOn && pressure < gSettings.minMpa) {
+        if (!gPumpOn && gPumpControlEnabled && pressure < gSettings.minMpa) {
             setPump(true);
         } else if (gPumpOn && pressure >= gSettings.maxMpa) {
             setPump(false);
@@ -268,6 +272,28 @@ namespace {
                 applySettingsCancel();
             }
         }
+    }
+    void onMqttPumpControl(bool enabled) {
+        gPumpControlEnabled = enabled;
+        if (!enabled) {
+            setPump(false);
+        }
+    }
+
+    void onMqttMessage(char *topic, byte *payload, unsigned int length) {
+        if (mqtt != nullptr) {
+            mqtt->onMessage(topic, payload, length);
+        }
+    }
+
+    void startMqttIfNeeded() {
+        if (mqtt != nullptr) {
+            return;
+        }
+        mqtt = new MqttClient(settingsManager->getSettings());
+        mqtt->setMessageCallback(onMqttMessage);
+        mqtt->setPumpControlHandler(onMqttPumpControl);
+        LOGGER.info("MQTT client started");
     }
 } // namespace
 
@@ -329,8 +355,7 @@ void setup() {
         mqtt = nullptr;
         LOGGER.info("MQTT client skipped (WiFi STA not connected)");
     } else {
-        mqtt = new MqttClient(settingsManager->getSettings());
-        LOGGER.info("MQTT client started");
+        startMqttIfNeeded();
     }
 
     gLastActivityMs = millis();
@@ -359,13 +384,8 @@ void loop() {
     }
 
     // Start MQTT once STA has a link (boot miss, AP timeout, or later reconnect).
-    if (!isAp && mqtt == nullptr && WiFi.isConnected()) {
-        mqtt = new MqttClient(settingsManager->getSettings());
-        LOGGER.info("MQTT client started");
-    }
-
-    if (mqtt != nullptr) {
-        mqtt->dispatch();
+    if (!isAp && WiFi.isConnected()) {
+        startMqttIfNeeded();
     }
 
     if (gMode == UiMode::Fail) {
@@ -391,6 +411,10 @@ void loop() {
 
     const float pressure = Pressure::readMpa();
     updateControl(pressure);
+
+    if (mqtt != nullptr) {
+        mqtt->dispatch(gPumpOn, pressure);
+    }
 
     const unsigned long now = millis();
     if ((now - gLastDisplayMs) >= kDisplayMs) {

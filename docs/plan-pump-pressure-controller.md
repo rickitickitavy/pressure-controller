@@ -92,7 +92,7 @@ On **Fail**:
 - **WiFi STA** with reconnect; **AP** if encoder button held at boot (5 min timeout). In AP mode LCD shows MAC under MAX.
 - **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT **and** `PressureSettings` (min/max/leak/weak/sensor; Atm in UI).
 - **ArduinoOTA**: always while AP is up; in STA only when `network.enableOtaOnNetwork` is true (default false). LCD shows **OTA** under the WiFi icon when active.
-- **MQTT** scaffold: connect, publish alive, subscribe to commands — publish/command handling still TODO.
+- **MQTT**: connect; publish alive / pump state / pressure; `enable`/`disable` commands; `pressureUpdateDiffAtm` gate. See [`HANDOFF.md`](HANDOFF.md).
 
 Details: [`HANDOFF.md`](HANDOFF.md).
 

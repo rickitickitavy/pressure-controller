@@ -82,7 +82,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 ## Persistence & settings model
 
 - Stored in **EEPROM** (4096 bytes) via [`src/SettingsManager.cpp`](../src/SettingsManager.cpp) — **not** `Preferences`/NVS.
-- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields, `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 3`). No brightness field.
+- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 1`). No brightness field.
 - First boot (invalid marker): single `SettingsManager::applyDefaults()` fills all defaults, then save + restart.
 - Version mismatch: upgrade branch kept (log + stamp version + save) but **no field migrations** yet.
 - Web/API parameter names: [`src/SettingsNavigator.cpp`](../src/SettingsNavigator.cpp) + `ParamDescriptor` (incl. `BOOLEAN`, pressure `*`, `network>enableOtaOnNetwork`).
@@ -108,8 +108,10 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 ### MQTT ([`src/MqttClient.cpp`](../src/MqttClient.cpp))
 
 - Created only when STA is connected (not in AP). Lazy-created later if WiFi connects after boot.
-- On connect: publishes device name to `topicTheDeviceIsAlive`; subscribes to `commands/{mqttDeviceName}` and `topicToListenServerWasBorn` (default `homeassistant/status`).
-- **Current status:** callback only logs payloads; pump/pressure topic publish not wired yet. Topic name fields exist in settings for future use.
+- On connect (and on `topicToListenServerWasBorn` = `online`): publish device name to `topicTheDeviceIsAlive`; publish retained pump `"ON"`/`"OFF"` to `topicThePumpState/{mqttDeviceName}`; publish pressure (Atm, 2 decimals) to `topicPressureValue/{mqttDeviceName}`; subscribe to `topicToListenCommands/{mqttDeviceName}` and `topicToListenServerWasBorn` (default `homeassistant/status`).
+- Ongoing pump publish: on actual pump state change via `notifyPumpState` from `setPump` (retained). Ongoing pressure publish: only when `|Δatm| > mqtt>pressureUpdateDiffAtm` (default **0.05**, clamp **0.01–0.5**; Web UI step **0.01**). No pressure heartbeat.
+- Commands on `commands/{device}`: `enable` / `disable` (case-insensitive). `disable` forces pump OFF and blocks auto ON; `enable` restores auto control.
+- Setting `pressureUpdateDiffAtm` is appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to default on load.
 
 ### Web / LittleFS
 
@@ -152,9 +154,7 @@ USB CDC is enabled (`ARDUINO_USB_CDC_ON_BOOT`, `ARDUINO_USB_MODE`).
 
 ## Known gaps / WIP
 
-- MQTT: connect + alive + subscribe only; no command handling or state/pressure publishing yet.
 - Temporary NDJSON debug logs (session `2ce4f1`) still in `display.cpp` / `main.cpp` — safe to remove after verification.
-- Web page title was legacy “Lamp…” — now “Pump WiFi settings”.
 
 ## Plan copies in this folder
 

@@ -36,6 +36,7 @@ SettingsManager::SettingsManager(){
         } else {
             clampAdvanced(settings.pressure);
             clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
+            clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
         }
     }
 
@@ -75,9 +76,19 @@ void SettingsManager::applyDefaults() {
 
     String("device").toCharArray(settings.mqttDeviceName, sizeof(settings.mqttDeviceName));
 
+    settings.pressureUpdateDiffAtm = DEFAULT_MQTT_PRESSURE_UPDATE_DIFF_ATM;
+
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
     clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
+}
+//--------------------------------------------------------------------
+
+void SettingsManager::clampPressureUpdateDiff(float &diffAtm) {
+    if (!(diffAtm >= MQTT_PRESSURE_UPDATE_DIFF_MIN_ATM &&
+          diffAtm <= MQTT_PRESSURE_UPDATE_DIFF_MAX_ATM)) {
+        diffAtm = MQTT_PRESSURE_UPDATE_DIFF_DEFAULT_ATM;
+    }
 }
 //--------------------------------------------------------------------
 
@@ -227,6 +238,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      The name of topic to report the pressure value:             " + String(settings.topicPressureValue) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to say that the device is alive:          " + String(settings.topicToListenCommands) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to listen when server has born again:     " + String(settings.topicToListenServerWasBorn));
+    LOGGER.info("      Pressure update difference (Atm):                           " + String(settings.pressureUpdateDiffAtm));
     LOGGER.info("   pressure:");
     LOGGER.info("      minMpa: " + String(settings.pressure.minMpa));
     LOGGER.info("      maxMpa: " + String(settings.pressure.maxMpa));

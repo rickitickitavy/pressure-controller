@@ -1,0 +1,11 @@
+---
+description: Never upscale fonts or icons on the TFT UI
+alwaysApply: true
+---
+
+# UI assets: no upscaling
+
+- Never use `setTextSize(n)` with `n != 1` to enlarge text.
+- Choose a properly sized Adafruit GFX font (e.g. FreeSansBold9pt7b / 12pt / 18pt / 24pt) instead of scaling the default or another font.
+- Keep `setTextSize(1)` when using GFXfonts.
+- Never scale bitmap icons at draw time (no 2x/Nx pixel replication). Use a native-resolution glyph/bitmap and draw 1:1.

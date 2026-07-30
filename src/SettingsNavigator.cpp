@@ -73,6 +73,11 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            31,
                                                                            (void *) &settings->topicToListenServerWasBorn[0],
                                                                            (void *) &settings->topicToListenServerWasBorn[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>pressureUpdateDiffAtm", FLOAT,
+                                                                           MQTT_PRESSURE_UPDATE_DIFF_MIN_ATM,
+                                                                           MQTT_PRESSURE_UPDATE_DIFF_MAX_ATM,
+                                                                           (void *) &settings->pressureUpdateDiffAtm,
+                                                                           (void *) &settings->pressureUpdateDiffAtm);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.0f,
                                                                            SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,

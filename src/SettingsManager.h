@@ -67,6 +67,8 @@ public:
 
     static void clampPair(float& minMpa, float& maxMpa, float sensorMaxMpa);
 
+    static void clampPressureUpdateDiff(float& diffAtm);
+
     /**
      * Сброс настроек WiFi в дефолтовые
      */

@@ -5,6 +5,7 @@
 #include "MqttClient.h"
 #include "Logger.h"
 #include "Defines.h"
+#include <math.h>
 
 MqttClient::MqttClient(GlobalSettings *settings) {
     this->settings = settings;
@@ -14,11 +15,18 @@ MqttClient::MqttClient(GlobalSettings *settings) {
 
     espClient = new WiFiClient();
     client = new PubSubClient(*espClient);
-    client->setCallback(callback);
     client->setServer(server.c_str(), port);
 
     lastReconnectTime = 0;
     lastCheckTime = 0;
+}
+
+void MqttClient::setPumpControlHandler(PumpControlFn fn) {
+    pumpControlHandler = fn;
+}
+
+void MqttClient::setMessageCallback(MessageCallback cb) {
+    client->setCallback(cb);
 }
 
 void MqttClient::checkConnection() {
@@ -36,24 +44,60 @@ void MqttClient::checkConnection() {
     }
 }
 
+void MqttClient::publishAlive() {
+    LOGGER.info("       MQTT notifying the server the device is ready to topic '" +
+                String(settings->topicTheDeviceIsAlive) + "'");
+    client->publish(settings->topicTheDeviceIsAlive, settings->mqttDeviceName);
+}
+
+void MqttClient::publishState(bool pumpOn) {
+    if (!client->connected() || topicPumpState.length() == 0) {
+        return;
+    }
+    const char *payload = pumpOn ? "ON" : "OFF";
+    client->publish(topicPumpState.c_str(), payload, true);
+}
+
+void MqttClient::publishPressure(float pressureMpa, bool force) {
+    if (!client->connected() || topicPressure.length() == 0) {
+        return;
+    }
+    const float atm = pressureMpa / PRESSURE_ATM_MPA;
+    if (!force && hasPublishedPressure) {
+        const float diff = fabsf(atm - lastPublishedPressureAtm);
+        if (!(diff > settings->pressureUpdateDiffAtm)) {
+            return;
+        }
+    }
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.2f", atm);
+    client->publish(topicPressure.c_str(), buf, false);
+    lastPublishedPressureAtm = atm;
+    hasPublishedPressure = true;
+}
+
+void MqttClient::publishBootstrap() {
+    publishAlive();
+    publishState(pendingPumpOn);
+    publishPressure(pendingPressureMpa, true);
+    forcePublishBootstrap = false;
+}
+
 void MqttClient::reconnect() {
     if (!client->connected()) {
         LOGGER.info("Attempting MQTT connection...");
-        // Attempt to connect
-        String deviceInputTopic = String(settings->mqttDeviceName) + "/" + String(settings->mqttDeviceName);
-        if (client->connect(deviceInputTopic.c_str())) {
-
+        String clientId = String(settings->mqttDeviceName) + "/" + String(settings->mqttDeviceName);
+        if (client->connect(clientId.c_str())) {
             LOGGER.info("   MQTT connected.");
 
-            String topicToListenCommand = String(settings->topicToListenCommands) + "/" + String(settings->mqttDeviceName);
+            topicPumpState = String(settings->topicThePumpState) + "/" + String(settings->mqttDeviceName);
+            topicPressure = String(settings->topicPressureValue) + "/" + String(settings->mqttDeviceName);
+            topicCommands = String(settings->topicToListenCommands) + "/" + String(settings->mqttDeviceName);
 
-            // Once connected, publish an announcement...
-            LOGGER.info("       MQTT notifying the server the device is ready to topic '" + String(settings->topicTheDeviceIsAlive) + "'");
-            client->publish(settings->topicTheDeviceIsAlive, settings->mqttDeviceName);
+            publishBootstrap();
 
-            // ... and resubscribe
-            LOGGER.info("       Subscribing to '" + topicToListenCommand + "' ...");
-            LOGGER.info(client->subscribe(topicToListenCommand.c_str())
+            LOGGER.info("       Subscribing to '" + topicCommands + "' ...");
+            LOGGER.info(client->subscribe(topicCommands.c_str())
                         ? "         subscribed."
                         : "         NOT subscribed.");
 
@@ -67,20 +111,73 @@ void MqttClient::reconnect() {
     }
 }
 
-void MqttClient::callback(char *topic, byte *payload, unsigned int length) {
-    LOGGER.info("Message arrived");
-    LOGGER.info(topic);
-    char *data = (char*) malloc(length + 1);
-    memcpy(data, payload, length);
-    data[length] = 0;
-    String text =  String(data);
-    free(data);
-    LOGGER.info(text);
+void MqttClient::handleMessage(const String &topic, const String &payload) {
+    if (topic == topicCommands) {
+        String cmd = payload;
+        cmd.trim();
+        cmd.toLowerCase();
+        if (cmd == "enable") {
+            LOGGER.info("MQTT command: enable");
+            if (pumpControlHandler != nullptr) {
+                pumpControlHandler(true);
+            }
+        } else if (cmd == "disable") {
+            LOGGER.info("MQTT command: disable");
+            if (pumpControlHandler != nullptr) {
+                pumpControlHandler(false);
+            }
+        } else {
+            LOGGER.warning("MQTT unknown command: '" + payload + "'");
+        }
+        return;
+    }
+
+    if (topic == String(settings->topicToListenServerWasBorn)) {
+        String status = payload;
+        status.trim();
+        status.toLowerCase();
+        if (status == "online") {
+            LOGGER.info("MQTT server was born (online) — republishing state");
+            forcePublishBootstrap = true;
+        }
+    }
 }
 
-void MqttClient::dispatch() {
+void MqttClient::onMessage(char *topic, byte *payload, unsigned int length) {
+    char *data = (char *) malloc(length + 1);
+    if (data == nullptr) {
+        return;
+    }
+    memcpy(data, payload, length);
+    data[length] = 0;
+    String text = String(data);
+    free(data);
+
+    LOGGER.info("Message arrived");
+    LOGGER.info(topic);
+    LOGGER.info(text);
+
+    handleMessage(String(topic), text);
+}
+
+void MqttClient::notifyPumpState(bool pumpOn) {
+    pendingPumpOn = pumpOn;
+    publishState(pumpOn);
+}
+
+void MqttClient::dispatch(bool pumpOn, float pressureMpa) {
+    pendingPumpOn = pumpOn;
+    pendingPressureMpa = pressureMpa;
+
     checkConnection();
-    if (client->connected()) {
-        client->loop();
+    if (!client->connected()) {
+        return;
+    }
+    client->loop();
+
+    if (forcePublishBootstrap) {
+        publishBootstrap();
+    } else {
+        publishPressure(pressureMpa, false);
     }
 }
