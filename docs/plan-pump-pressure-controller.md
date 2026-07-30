@@ -89,9 +89,9 @@ On **Fail**:
 
 ## Networking (added on `feature/add-mqtt-connection`)
 
-- **WiFi STA** with reconnect; **AP** if encoder button held at boot (5 min timeout).
-- **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT parameters.
-- **ArduinoOTA** while STA or AP is up.
+- **WiFi STA** with reconnect; **AP** if encoder button held at boot (5 min timeout). In AP mode LCD shows MAC under MAX.
+- **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT **and** `PressureSettings` (min/max/leak/weak/sensor; Atm in UI).
+- **ArduinoOTA**: always while AP is up; in STA only when `network.enableOtaOnNetwork` is true (default false). LCD shows **OTA** under the WiFi icon when active.
 - **MQTT** scaffold: connect, publish alive, subscribe to commands — publish/command handling still TODO.
 
 Details: [`HANDOFF.md`](HANDOFF.md).
@@ -115,7 +115,7 @@ Arduino + PlatformIO on `esp32-c3-devkitc-02` at
 
 ## UI (main screen)
 
-Top → bottom bands: **MAX** → **Current** (centered) → **Pump icon** (green ON / gray OFF) + **WiFi icon** → **MIN**.  
+Top → bottom bands: **MAX** → **MAC** (AP only, white FreeSansBold 12pt, `kYMac=57`) → **Current** (centered) → **Pump icon** (green ON / gray OFF) + **WiFi icon** (**AP** / **OTA** labels when active) → **MIN**.  
 Edit highlight: black on yellow. Fail: FAIL + pressure + Reboot hint.
 
 ## Control loop notes

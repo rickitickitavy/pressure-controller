@@ -25,7 +25,7 @@ private:
      */
     void readSettings();
 
-    void applyPressureDefaults();
+    void applyDefaults();
 
 public:
     SettingsManager();

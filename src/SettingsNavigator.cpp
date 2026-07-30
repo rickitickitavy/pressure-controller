@@ -34,6 +34,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            63,
                                                                            (void *) &settings->network.hostName[0],
                                                                            (void *) &settings->network.hostName[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("network>enableOtaOnNetwork", BOOLEAN, 0,
+                                                                           1,
+                                                                           (void *) &settings->network.enableOtaOnNetwork,
+                                                                           (void *) &settings->network.enableOtaOnNetwork);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>server", STRING, 5,
                                                                            63,
@@ -69,14 +73,39 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            31,
                                                                            (void *) &settings->topicToListenServerWasBorn[0],
                                                                            (void *) &settings->topicToListenServerWasBorn[0]);
-    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("device>bright", FLOAT, 0.01f, 100.f,
-                                                                           (void *) &settings->bright,
-                                                                           (void *) &settings->bright);
-//    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("network>ipAddress", IPv4, 7,
-//                                                                           15,
-//                                                                           (void *) &settings->network.ipAddress[0],
-//                                                                           (void *) &settings->network.ipAddress[0]);
 
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.0f,
+                                                                           SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,
+                                                                           (void *) &settings->pressure.minMpa,
+                                                                           (void *) &settings->pressure.minMpa);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>maxAtm", FLOAT,
+                                                                           PRESSURE_MIN_GAP_MPA / PRESSURE_ATM_MPA,
+                                                                           SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,
+                                                                           (void *) &settings->pressure.maxMpa,
+                                                                           (void *) &settings->pressure.maxMpa);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>leakDetectSec", INTEGER,
+                                                                           static_cast<float>(LEAK_SEC_MIN),
+                                                                           static_cast<float>(LEAK_SEC_MAX),
+                                                                           (void *) &settings->pressure.leakDetectSec,
+                                                                           (void *) &settings->pressure.leakDetectSec);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>pumpWeakSec", INTEGER,
+                                                                           static_cast<float>(WEAK_SEC_MIN),
+                                                                           static_cast<float>(WEAK_SEC_MAX),
+                                                                           (void *) &settings->pressure.pumpWeakSec,
+                                                                           (void *) &settings->pressure.pumpWeakSec);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>sensorMaxAtm", FLOAT,
+                                                                           SENSOR_MAX_MIN_MPA / PRESSURE_ATM_MPA,
+                                                                           SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,
+                                                                           (void *) &settings->pressure.sensorMaxMpa,
+                                                                           (void *) &settings->pressure.sensorMaxMpa);
+
+}
+
+namespace {
+    bool isPressureAtmParam(const String &paramName) {
+        return paramName == "pressure>minAtm" || paramName == "pressure>maxAtm" ||
+               paramName == "pressure>sensorMaxAtm";
+    }
 }
 //--------------------------------------------------------------------
 
@@ -105,15 +134,24 @@ String SettingsNavigator::getSettingByName(String origParamName) {
                                     (int) paramDescriptors[descriptorIndex]->maxValue))
                            : String(*(int *) paramDescriptors[descriptorIndex]->valueReferenceForRead);
                 } else if (paramDescriptors[descriptorIndex]->paramType == FLOAT) {
-                    return showMin || showMax
-                           ? (showMin ? String(paramDescriptors[descriptorIndex]->minValue) : String(
-                                    paramDescriptors[descriptorIndex]->maxValue))
-                           : String(*(float *) paramDescriptors[descriptorIndex]->valueReferenceForRead);
+                    if (showMin || showMax) {
+                        return showMin ? String(paramDescriptors[descriptorIndex]->minValue)
+                                       : String(paramDescriptors[descriptorIndex]->maxValue);
+                    }
+                    float value = *(float *) paramDescriptors[descriptorIndex]->valueReferenceForRead;
+                    if (isPressureAtmParam(paramName)) {
+                        value /= PRESSURE_ATM_MPA;
+                    }
+                    return String(value);
                 } else if (paramDescriptors[descriptorIndex]->paramType == STRING){
                     return showMin || showMax
                            ? (showMin ? String((int)paramDescriptors[descriptorIndex]->minValue) : String(
                                     (int)paramDescriptors[descriptorIndex]->maxValue))
                            : String((char *)paramDescriptors[descriptorIndex]->valueReferenceForRead);
+                } else if (paramDescriptors[descriptorIndex]->paramType == BOOLEAN){
+                    return showMin || showMax
+                           ? (showMin ? String(0) : String(1))
+                           : String(*(bool *)paramDescriptors[descriptorIndex]->valueReferenceForRead ? "1" : "0");
                 } else if (paramDescriptors[descriptorIndex]->paramType == UCHAR){
                     return showMin || showMax
                            ? (showMin ? String((unsigned char)paramDescriptors[descriptorIndex]->minValue) : String(
@@ -217,6 +255,10 @@ String SettingsNavigator::saveSettingsByNames(String *params, int paramsCount) {
         }
     }
 
+    SettingsManager::clampAdvanced(settings->pressure);
+    SettingsManager::clampPair(settings->pressure.minMpa, settings->pressure.maxMpa,
+                               settings->pressure.sensorMaxMpa);
+
     settingsManager->saveSetting(false);
 
     settingsManager->logSettings();
@@ -248,8 +290,23 @@ String SettingsNavigator::saveSettingByName(String paramName, String value) {
                                + String(paramDescriptors[descriptorIndex]->minValue) + " to "
                                + String(paramDescriptors[descriptorIndex]->maxValue);
                     } else {
+                        if (isPressureAtmParam(paramName)) {
+                            floatValue *= PRESSURE_ATM_MPA;
+                        }
                         *((float *) paramDescriptors[descriptorIndex]->valueReferenceForWrite) = floatValue;
                     }
+                } else if (paramDescriptors[descriptorIndex]->paramType == BOOLEAN) {
+                    String v = value;
+                    v.toLowerCase();
+                    bool boolValue = false;
+                    if (v == "1" || v == "true" || v == "yes" || v == "on") {
+                        boolValue = true;
+                    } else if (v == "0" || v == "false" || v == "no" || v == "off") {
+                        boolValue = false;
+                    } else {
+                        return "Value of \"" + paramName + "\" must be 0/1 or true/false";
+                    }
+                    *((bool *) paramDescriptors[descriptorIndex]->valueReferenceForWrite) = boolValue;
                 } else if (paramDescriptors[descriptorIndex]->paramType == STRING){
                     int valLen = value.length();
                     if ((valLen < paramDescriptors[descriptorIndex]->minValue)

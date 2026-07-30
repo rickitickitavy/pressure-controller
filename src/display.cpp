@@ -130,10 +130,10 @@ namespace {
 
     // Native 32x32 WiFi glyph (1bpp, 4 bytes/row, MSB left). Drawn 1:1 — no scaling.
     constexpr int kWifiIconSize = 32;
-    // FreeSansBold9pt baseline advance ~12–14px; keep room under the icon.
+    // FreeSansBold9pt baseline advance ~12–14px; room for AP + OTA under the icon.
     constexpr int kWifiLabelH = 16;
     constexpr int kWifiBlockW = kWifiIconSize;
-    constexpr int kWifiBlockH = kWifiIconSize + kWifiLabelH;
+    constexpr int kWifiBlockH = kWifiIconSize + kWifiLabelH * 2;
 
     constexpr uint8_t kWifiIconBitmap[128] = {
         0x00, 0x00, 0x00, 0x00,
@@ -199,8 +199,8 @@ namespace {
             return;
         }
         drawWifiIcon(x, y, ST77XX_BLUE);
-        if (state.apMode) {
-            constexpr const char *kLabel = "AP";
+
+        auto drawCenteredLabel = [&](const char *label, int row) {
             tft.setFont(&FreeSansBold9pt7b);
             tft.setTextSize(1);
             tft.setTextColor(ST77XX_BLUE);
@@ -208,11 +208,20 @@ namespace {
             int16_t y1 = 0;
             uint16_t tw = 0;
             uint16_t th = 0;
-            tft.getTextBounds(kLabel, 0, 0, &x1, &y1, &tw, &th);
-            const int16_t baseline = static_cast<int16_t>(y + kWifiIconSize + th);
+            tft.getTextBounds(label, 0, 0, &x1, &y1, &tw, &th);
+            const int16_t baseline =
+                    static_cast<int16_t>(y + kWifiIconSize + kWifiLabelH * row + th);
             tft.setCursor(x + (kWifiBlockW - static_cast<int>(tw)) / 2 - x1, baseline);
-            tft.print(kLabel);
+            tft.print(label);
             tft.setFont(nullptr);
+        };
+
+        int labelRow = 0;
+        if (state.apMode) {
+            drawCenteredLabel("AP", labelRow++);
+        }
+        if (state.otaActive) {
+            drawCenteredLabel("OTA", labelRow);
         }
     }
 
@@ -343,7 +352,8 @@ namespace Display {
                 first || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f);
         const bool redrawPump = first || gLast.pumpOn != state.pumpOn;
         const bool redrawWifi =
-                first || gLast.wifiIcon != state.wifiIcon || gLast.apMode != state.apMode;
+                first || gLast.wifiIcon != state.wifiIcon || gLast.apMode != state.apMode ||
+                gLast.otaActive != state.otaActive;
         const bool redrawMin =
                 first || !nearlyEq(gLast.minMpa, state.minMpa, 0.0005f) || hlMin != wasHlMin;
 

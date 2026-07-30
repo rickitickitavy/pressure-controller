@@ -17,43 +17,8 @@ SettingsManager::SettingsManager(){
         || (settings.initMarker[1] != GLOBAL_SETTINGS_MARKER_1)
         || (settings.initMarker[2] != GLOBAL_SETTINGS_MARKER_2)
         || (settings.initMarker[3] != GLOBAL_SETTINGS_MARKER_3)) {
-        // настройки не инициализированы
-        settings.initMarker[0] = GLOBAL_SETTINGS_MARKER_0;
-        settings.initMarker[1] = GLOBAL_SETTINGS_MARKER_1;
-        settings.initMarker[2] = GLOBAL_SETTINGS_MARKER_2;
-        settings.initMarker[3] = GLOBAL_SETTINGS_MARKER_3;
-
         LOGGER.error("Settings has never been initialized. Initializing by default config...");
-
-        settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
-
-        // Заполнение дефолтными значениями
-        resetWiFi();
-
-        settings.mqttPort = 1883;
-        String(DEFAULT_MQTT_SERVER).toCharArray(settings.mqttServer, sizeof(settings.mqttServer));
-        settings.mqttReconnectIntervalMs = 1000;
-
-        String(DEFAULT_TOPIC_THE_DEVICE_IS_ALIVE).toCharArray(
-                settings.topicTheDeviceIsAlive, sizeof(settings.topicTheDeviceIsAlive));
-
-        String(DEFAULT_TOPIC_THE_PUMP_STATE).toCharArray(
-                settings.topicThePumpState, sizeof(settings.topicThePumpState));
-
-        String(DEFAULT_TOPIC_PRESSURE_VALUE).toCharArray(
-                settings.topicPressureValue, sizeof(settings.topicPressureValue));
-
-        String(DEFAULT_TOPIC_TO_LISTEN_COMMANDS).toCharArray(
-                settings.topicToListenCommands, sizeof(settings.topicToListenCommands));
-
-        String(DEFAULT_TOPIC_TO_LISTEN_SERVER_WAS_BORN).toCharArray(
-                settings.topicToListenServerWasBorn, sizeof(settings.topicToListenServerWasBorn));
-
-        String("device").toCharArray(settings.mqttDeviceName, sizeof(settings.mqttDeviceName));
-
-        settings.bright = 100.0f;
-        applyPressureDefaults();
-
+        applyDefaults();
         saveSetting(true);
         LOGGER.warning("Settings has never been initialized");
     } else {
@@ -63,10 +28,7 @@ SettingsManager::SettingsManager(){
 
             LOGGER.warning("Upgrade settings to version " + String(GLOBAL_CURRENT_SETTINGS_VERSION));
 
-            settings.bright = 100.0f;
-            applyPressureDefaults();
-            String(DEFAULT_TOPIC_PRESSURE_VALUE).toCharArray(
-                    settings.topicPressureValue, sizeof(settings.topicPressureValue));
+            // Future field migrations go here. No migrations needed yet.
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
@@ -82,7 +44,37 @@ SettingsManager::SettingsManager(){
 };
 //--------------------------------------------------------------------
 
-void SettingsManager::applyPressureDefaults() {
+void SettingsManager::applyDefaults() {
+    settings.initMarker[0] = GLOBAL_SETTINGS_MARKER_0;
+    settings.initMarker[1] = GLOBAL_SETTINGS_MARKER_1;
+    settings.initMarker[2] = GLOBAL_SETTINGS_MARKER_2;
+    settings.initMarker[3] = GLOBAL_SETTINGS_MARKER_3;
+    settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
+
+    resetWiFi();
+    settings.network.enableOtaOnNetwork = false;
+
+    settings.mqttPort = 1883;
+    String(DEFAULT_MQTT_SERVER).toCharArray(settings.mqttServer, sizeof(settings.mqttServer));
+    settings.mqttReconnectIntervalMs = 1000;
+
+    String(DEFAULT_TOPIC_THE_DEVICE_IS_ALIVE).toCharArray(
+            settings.topicTheDeviceIsAlive, sizeof(settings.topicTheDeviceIsAlive));
+
+    String(DEFAULT_TOPIC_THE_PUMP_STATE).toCharArray(
+            settings.topicThePumpState, sizeof(settings.topicThePumpState));
+
+    String(DEFAULT_TOPIC_PRESSURE_VALUE).toCharArray(
+            settings.topicPressureValue, sizeof(settings.topicPressureValue));
+
+    String(DEFAULT_TOPIC_TO_LISTEN_COMMANDS).toCharArray(
+            settings.topicToListenCommands, sizeof(settings.topicToListenCommands));
+
+    String(DEFAULT_TOPIC_TO_LISTEN_SERVER_WAS_BORN).toCharArray(
+            settings.topicToListenServerWasBorn, sizeof(settings.topicToListenServerWasBorn));
+
+    String("device").toCharArray(settings.mqttDeviceName, sizeof(settings.mqttDeviceName));
+
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
     clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
@@ -224,6 +216,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      SSID: " + String(settings.network.ssid));
     LOGGER.info("      password: " + String(settings.network.password));
     LOGGER.info("      host: " + String(settings.network.hostName));
+    LOGGER.info("      enableOtaOnNetwork: " + String(settings.network.enableOtaOnNetwork ? "true" : "false"));
     LOGGER.info("   mqtt:");
     LOGGER.info("      server: " + String(settings.mqttServer));
     LOGGER.info("      port: " + String(settings.mqttPort));
@@ -234,8 +227,6 @@ void SettingsManager::logSettings() {
     LOGGER.info("      The name of topic to report the pressure value:             " + String(settings.topicPressureValue) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to say that the device is alive:          " + String(settings.topicToListenCommands) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to listen when server has born again:     " + String(settings.topicToListenServerWasBorn));
-    LOGGER.info("   device:");
-    LOGGER.info("      bright: " + String(settings.bright));
     LOGGER.info("   pressure:");
     LOGGER.info("      minMpa: " + String(settings.pressure.minMpa));
     LOGGER.info("      maxMpa: " + String(settings.pressure.maxMpa));

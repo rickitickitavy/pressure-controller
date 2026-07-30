@@ -128,25 +128,25 @@ namespace {
 
         switch (gFocus) {
             case SettingsFocus::Leak: {
-                int v = static_cast<int>(gDraft.leakDetectSec) + steps;
+                int v = gDraft.leakDetectSec + steps;
                 if (v < LEAK_SEC_MIN) {
                     v = LEAK_SEC_MIN;
                 }
                 if (v > LEAK_SEC_MAX) {
                     v = LEAK_SEC_MAX;
                 }
-                gDraft.leakDetectSec = static_cast<uint16_t>(v);
+                gDraft.leakDetectSec = v;
                 break;
             }
             case SettingsFocus::Weak: {
-                int v = static_cast<int>(gDraft.pumpWeakSec) + steps;
+                int v = gDraft.pumpWeakSec + steps;
                 if (v < WEAK_SEC_MIN) {
                     v = WEAK_SEC_MIN;
                 }
                 if (v > WEAK_SEC_MAX) {
                     v = WEAK_SEC_MAX;
                 }
-                gDraft.pumpWeakSec = static_cast<uint16_t>(v);
+                gDraft.pumpWeakSec = v;
                 break;
             }
             case SettingsFocus::SensorMax:
@@ -311,12 +311,15 @@ void setup() {
     wiFiController = new WiFiController(settingsManager, forceAp);
     LOGGER.info("WiFi controller started");
 
-    if (WiFi.isConnected() || wiFiController->isApMode()) {
+    const bool otaWantedAtBoot =
+            wiFiController->isApMode() ||
+            (WiFi.isConnected() && settingsManager->getSettings()->network.enableOtaOnNetwork);
+    if (otaWantedAtBoot) {
         ArduinoOTA.begin();
         gOtaEnabled = true;
         LOGGER.info("OTA started");
     } else {
-        LOGGER.info("OTA skipped (WiFi not connected / not AP)");
+        LOGGER.info("OTA skipped (WiFi not connected / not AP / STA OTA disabled)");
     }
 
     if (wiFiController->isApMode()) {
@@ -340,8 +343,9 @@ void loop() {
     wiFiController->update();
     const bool isAp = wiFiController->isApMode();
 
-    // OTA while STA connected or AP is up; restart OTA if AP timed out into STA.
-    const bool otaWanted = WiFi.isConnected() || isAp;
+    // OTA always in AP; in STA only when enableOtaOnNetwork is set.
+    const bool otaWanted =
+            isAp || (WiFi.isConnected() && settingsManager->getSettings()->network.enableOtaOnNetwork);
     if (otaWanted && !gOtaEnabled) {
         ArduinoOTA.begin();
         gOtaEnabled = true;
@@ -404,6 +408,7 @@ void loop() {
         ui.pumpOn = gPumpOn;
         ui.apMode = wiFiController->isApMode();
         ui.wifiIcon = ui.apMode || wifiConnected;
+        ui.otaActive = gOtaEnabled;
         ui.macAddress[0] = '\0';
         if (ui.apMode) {
             WiFi.macAddress().toCharArray(ui.macAddress, sizeof(ui.macAddress));

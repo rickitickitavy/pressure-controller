@@ -85,6 +85,13 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
                                          sizeof(networkSettings.password));
                 wifiHostName.toCharArray(&networkSettings.hostName[0],
                                          sizeof(networkSettings.hostName));
+
+                String enableOta = request->arg("network>enableOtaOnNetwork");
+                enableOta.toLowerCase();
+                networkSettings.enableOtaOnNetwork =
+                        enableOta == "1" || enableOta == "true" || enableOta == "yes" ||
+                        enableOta == "on";
+
                 request->send(200, TEXT_PLAN, OK_RESPONSE);
 
                 settingsManager->getNavigator()->saveNetworkSettingsAndRestart(&networkSettings);

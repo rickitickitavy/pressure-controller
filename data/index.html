@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Lamp WiFi settings</title>
+    <title>Pump WiFi settings</title>
     <link rel="stylesheet" type="text/css" href="css/all.css"/>
     <script src="js/jq/jquery-3.4.1.js"></script>
     <script language="JavaScript">
         function saveSystemSettings() {
             var wiFiSsId = document.getElementById("wiFiSSID").value;
             var wiFiPassword = document.getElementById("wiFiPassword").value;
+            var networkEnableOta = document.getElementById("networkEnableOta").checked ? "1" : "0";
             var mqttServer = document.getElementById("mqttServer").value;
             var mqttPort = document.getElementById("mqttPort").value;
             var mqttDeviceName = document.getElementById("mqttDeviceName").value;
@@ -18,13 +19,19 @@
             var mqttTopicPressureValue = document.getElementById("mqttTopicPressureValue").value;
             var mqttTopicToListenCommands = document.getElementById("mqttTopicToListenCommands").value;
             var mqttTopicToListenServerWasBorn = document.getElementById("mqttTopicToListenServerWasBorn").value;
-            var deviceBright = document.getElementById("deviceBright").value;
+            var pressureMinAtm = document.getElementById("pressureMin").value;
+            var pressureMaxAtm = document.getElementById("pressureMax").value;
+            var pressureLeak = document.getElementById("pressureLeak").value;
+            var pressureWeak = document.getElementById("pressureWeak").value;
+            var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
 
             var saveNetworkSettings = function(){
                 $.ajax({
                     url: "/settingsApi",
                     method: "POST",
-                    data: "operation=write&parameter=wifi&network>ssid=" + wiFiSsId + "&network>password=" + wiFiPassword,
+                    data: "operation=write&parameter=wifi&network>ssid=" + wiFiSsId
+                        + "&network>password=" + wiFiPassword
+                        + "&network>enableOtaOnNetwork=" + networkEnableOta,
                     success: function (response) {
                         window.location = "/";
                     }.bind(this),
@@ -47,7 +54,11 @@
                 + "|mqtt>topicPressureValue=" + mqttTopicPressureValue
                 + "|mqtt>topicToListenCommands=" + mqttTopicToListenCommands
                 + "|mqtt>topicToListenServerWasBorn=" + mqttTopicToListenServerWasBorn
-                + "|device>bright=" + deviceBright
+                + "|pressure>minAtm=" + pressureMinAtm
+                + "|pressure>maxAtm=" + pressureMaxAtm
+                + "|pressure>leakDetectSec=" + pressureLeak
+                + "|pressure>pumpWeakSec=" + pressureWeak
+                + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
                 ,
                 success: function (response) {
                     if (response != undefined){
@@ -65,13 +76,22 @@
                 dataType: "json"
             });
         }
+
+        function initFormControls() {
+            var ota = document.getElementById("networkEnableOta");
+            if (ota) {
+                ota.checked = ota.getAttribute("data-value") === "1";
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", initFormControls);
     </script>
 </head>
 <body>
 <div class="formBase form-flex-vertical-container">
 
     <div class="formHeader">
-        Настройки WiFi
+        WiFi settings
     </div>
 
     <div class="form-flex-vertical-container">
@@ -89,6 +109,30 @@
             </div>
         </div>
 
+    </div>
+    </br>
+
+    <div class="formHeader">
+        Network settings
+    </div>
+
+    <div class="form-flex-vertical-container">
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Enable OTA on network (STA)</div>
+            <div class="formParamValue">
+                <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
+            </div>
+        </div>
+
+    </div>
+    </br>
+
+    <div class="formHeader">
+        Mqtt settings
+    </div>
+
+    <div class="form-flex-vertical-container">
         <div class="form-inputField-container">
             <div class="formParamCaption">Mqtt server</div>
             <div class="formParamValue">
@@ -152,11 +196,54 @@
             </div>
         </div>
 
+    </div>
+    </br>
+
+    <div class="formHeader">
+        Pressure settings
+    </div>
+
+    <div class="form-flex-vertical-container">
         <div class="form-inputField-container">
-            <div class="formParamCaption">Bright (min %device>bright#min%, max %device>bright#max%) </div>
+            <div class="formParamCaption">MIN pressure (Atm)</div>
             <div class="formParamValue">
-                <input id="deviceBright" class="formStringParamValue" type="number" step="0.01"
-                       min="%device>bright#min%" max="%device>bright#max%" value="%device>bright%">
+                <input id="pressureMin" class="formStringParamValue" type="number" step="0.01"
+                       min="%pressure>minAtm#min%" max="%pressure>minAtm#max%" value="%pressure>minAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">MAX pressure (Atm)</div>
+            <div class="formParamValue">
+                <input id="pressureMax" class="formStringParamValue" type="number" step="0.01"
+                       min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">LEAK (s)</div>
+            <div class="formParamValue">
+                <input id="pressureLeak" class="formStringParamValue" type="number" step="1"
+                       min="%pressure>leakDetectSec#min%" max="%pressure>leakDetectSec#max%"
+                       value="%pressure>leakDetectSec%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">WEAK (s)</div>
+            <div class="formParamValue">
+                <input id="pressureWeak" class="formStringParamValue" type="number" step="1"
+                       min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
+                       value="%pressure>pumpWeakSec%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">SENS sensor full-scale (Atm)</div>
+            <div class="formParamValue">
+                <input id="pressureSensorMax" class="formStringParamValue" type="number" step="0.1"
+                       min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
+                       value="%pressure>sensorMaxAtm%">
             </div>
         </div>
 
