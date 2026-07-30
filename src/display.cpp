@@ -8,6 +8,7 @@
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <SPI.h>
 #include <cmath>
+#include <cstring>
 
 #include "pins.h"
 #include "GlobalSettings.h"
@@ -23,13 +24,15 @@ namespace {
 
     // Main screen contiguous bands (320px).
     constexpr int kYMax = 0;
-    constexpr int kHMax = 52; // was 64; shortened so current can move up 12
-    constexpr int kYCurrent = 52; // was 64; up 12
-    constexpr int kHCurrent = 106;
-    constexpr int kYPump = 158; // was 170; up 12
+    constexpr int kHMax = 52;
+    constexpr int kYMac = 57; // between MAX and current (AP mode MAC); 5px gap after MAX
+    constexpr int kHMac = 24;
+    constexpr int kYCurrent = 81;
+    constexpr int kHCurrent = 77;
+    constexpr int kYPump = 158;
     constexpr int kHPump = 100;
     constexpr int kYMin = 258;
-    constexpr int kHMin = 62; // was 70; -8
+    constexpr int kHMin = 62;
 
     constexpr uint16_t kDarkGreen = 0x0400;
     constexpr uint16_t kPumpOffGray = 0x8410;
@@ -41,7 +44,8 @@ namespace {
     // Settings screen: 5 equal rows.
     constexpr int kSettingsRowH = 64;
 
-    static_assert(kYMax + kHMax == kYCurrent, "gap max/current");
+    static_assert(kYMax + kHMax + 5 == kYMac, "5px gap max/mac");
+    static_assert(kYMac + kHMac == kYCurrent, "gap mac/current");
     static_assert(kYCurrent + kHCurrent == kYPump, "gap current/pump");
     static_assert(kYPump + kHPump == kYMin, "gap pump/min");
     static_assert(kYMin + kHMin == TFT_HEIGHT, "min must reach bottom");
@@ -113,6 +117,15 @@ namespace {
         snprintf(buf, sizeof(buf), "%.2f", toAtm(state.pressureMpa));
         drawBar(kYCurrent, kHCurrent, buf, ST77XX_CYAN, ST77XX_BLACK, &FreeSansBold24pt7b,
                 true);
+    }
+
+    void drawMac(const UiState &state) {
+        if (state.apMode && state.macAddress[0] != '\0') {
+            drawBar(kYMac, kHMac, state.macAddress, ST77XX_WHITE, ST77XX_BLACK,
+                    &FreeSansBold12pt7b, true);
+        } else {
+            tft.fillRect(0, kYMac, TFT_WIDTH, kHMac, ST77XX_BLACK);
+        }
     }
 
     // Native 32x32 WiFi glyph (1bpp, 4 bytes/row, MSB left). Drawn 1:1 — no scaling.
@@ -323,6 +336,9 @@ namespace Display {
 
         const bool redrawMax =
                 first || !nearlyEq(gLast.maxMpa, state.maxMpa, 0.0005f) || hlMax != wasHlMax;
+        const bool redrawMac =
+                first || gLast.apMode != state.apMode ||
+                strcmp(gLast.macAddress, state.macAddress) != 0;
         const bool redrawCur =
                 first || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f);
         const bool redrawPump = first || gLast.pumpOn != state.pumpOn;
@@ -331,12 +347,15 @@ namespace Display {
         const bool redrawMin =
                 first || !nearlyEq(gLast.minMpa, state.minMpa, 0.0005f) || hlMin != wasHlMin;
 
-        if (!redrawMax && !redrawCur && !redrawPump && !redrawWifi && !redrawMin) {
+        if (!redrawMax && !redrawMac && !redrawCur && !redrawPump && !redrawWifi && !redrawMin) {
             return;
         }
 
         if (redrawMax) {
             drawMax(state);
+        }
+        if (redrawMac) {
+            drawMac(state);
         }
         if (redrawCur) {
             drawCurrent(state);

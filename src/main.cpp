@@ -404,6 +404,10 @@ void loop() {
         ui.pumpOn = gPumpOn;
         ui.apMode = wiFiController->isApMode();
         ui.wifiIcon = ui.apMode || wifiConnected;
+        ui.macAddress[0] = '\0';
+        if (ui.apMode) {
+            WiFi.macAddress().toCharArray(ui.macAddress, sizeof(ui.macAddress));
+        }
         ui.draft = gDraft;
         ui.focus = gFocus;
 

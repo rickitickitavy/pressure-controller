@@ -28,7 +28,8 @@ struct UiState {
     float maxMpa = 0.35f;
     bool pumpOn = false;
     bool wifiIcon = false; // AP active or STA connected
-    bool apMode = false;   // show "AP" under WiFi icon
+    bool apMode = false;   // show "AP" under WiFi icon + MAC under MAX
+    char macAddress[18] = {}; // "AA:BB:CC:DD:EE:FF"; used in AP mode
     PressureSettings draft{};
     SettingsFocus focus = SettingsFocus::Leak;
 };
