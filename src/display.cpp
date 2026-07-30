@@ -4,7 +4,6 @@
 #include <Adafruit_ST7789.h>
 #include <Fonts/FreeSansBold9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <SPI.h>
 #include <cmath>
@@ -19,7 +18,6 @@ namespace {
 
     UiState gLast{};
     bool gHasLast = false;
-    bool gFailLayout = false;
     bool gSettingsLayout = false;
 
     // Main screen contiguous bands (320px).
@@ -225,8 +223,47 @@ namespace {
         }
     }
 
+    void drawFailE(bool show) {
+        const int16_t pumpX = static_cast<int16_t>((TFT_WIDTH - kPumpIconW) / 2);
+        tft.fillRect(0, kYPump, pumpX, kHPump, ST77XX_BLACK);
+        if (!show) {
+            return;
+        }
+
+        tft.setFont(&FreeSansBold24pt7b);
+        tft.setTextSize(1);
+        tft.setTextColor(ST77XX_RED);
+
+        int16_t x1 = 0;
+        int16_t y1 = 0;
+        uint16_t tw = 0;
+        uint16_t th = 0;
+        tft.getTextBounds("E", 0, 0, &x1, &y1, &tw, &th);
+
+        const int16_t pumpY = static_cast<int16_t>(kYPump + kPumpIconPadY);
+        int baseline = pumpY + (kPumpIconH + static_cast<int>(th)) / 2;
+        if (baseline > kYPump + kHPump - 2) {
+            baseline = kYPump + kHPump - 2;
+        }
+        if (baseline < kYPump + static_cast<int>(th)) {
+            baseline = kYPump + static_cast<int>(th);
+        }
+
+        const int x = (pumpX - static_cast<int>(tw)) / 2 - x1;
+        tft.setCursor(x, baseline);
+        tft.print("E");
+        tft.setFont(nullptr);
+    }
+
     void drawPump(const UiState &state) {
-        drawPump(state.pumpOn ? ST77XX_GREEN : kPumpOffGray);
+        uint16_t color = kPumpOffGray;
+        if (!state.pumpControlEnabled) {
+            color = ST77XX_RED;
+        } else if (state.pumpOn) {
+            color = ST77XX_GREEN;
+        }
+        drawPump(color);
+        drawFailE(state.leakFail);
     }
 
     void drawMin(const UiState &state) {
@@ -236,14 +273,6 @@ namespace {
         const uint16_t fg = editing ? ST77XX_BLACK : ST77XX_WHITE;
         const uint16_t bg = editing ? ST77XX_YELLOW : kDarkGreen;
         drawBar(kYMin, kHMin, buf, fg, bg, &FreeSansBold24pt7b);
-    }
-
-    void drawFail(const UiState &state) {
-        char buf[24];
-        snprintf(buf, sizeof(buf), "%.2f", toAtm(state.pressureMpa));
-        drawBar(0, 100, "FAIL", ST77XX_RED, ST77XX_BLACK, &FreeSansBold24pt7b);
-        drawBar(100, 110, buf, ST77XX_WHITE, ST77XX_BLACK, &FreeSansBold24pt7b);
-        drawBar(210, 110, "Reboot", ST77XX_WHITE, ST77XX_BLACK, &FreeSansBold18pt7b);
     }
 
     void drawSettingsRow(int index, const char *text, bool selected) {
@@ -288,34 +317,14 @@ namespace Display {
         // #endregion
         tft.fillScreen(ST77XX_BLACK);
         gHasLast = false;
-        gFailLayout = false;
         gSettingsLayout = false;
     }
 
     void render(const UiState &state) {
-        if (state.mode == UiMode::Fail) {
-            if (!gFailLayout) {
-                tft.fillScreen(ST77XX_BLACK);
-                gFailLayout = true;
-                gSettingsLayout = false;
-                gHasLast = false;
-            }
-            const bool needFailRedraw =
-                    !gHasLast || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f) ||
-                    gLast.mode != state.mode;
-            if (needFailRedraw) {
-                drawFail(state);
-                gLast = state;
-                gHasLast = true;
-            }
-            return;
-        }
-
         if (state.mode == UiMode::Settings) {
             if (!gSettingsLayout) {
                 tft.fillScreen(ST77XX_BLACK);
                 gSettingsLayout = true;
-                gFailLayout = false;
                 gHasLast = false;
             }
             const bool need =
@@ -329,10 +338,9 @@ namespace Display {
             return;
         }
 
-        // Leaving special layouts
-        if (gFailLayout || gSettingsLayout) {
+        // Leaving settings layout
+        if (gSettingsLayout) {
             tft.fillScreen(ST77XX_BLACK);
-            gFailLayout = false;
             gSettingsLayout = false;
             gHasLast = false;
         }
@@ -350,7 +358,10 @@ namespace Display {
                 strcmp(gLast.macAddress, state.macAddress) != 0;
         const bool redrawCur =
                 first || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f);
-        const bool redrawPump = first || gLast.pumpOn != state.pumpOn;
+        const bool redrawPump =
+                first || gLast.pumpOn != state.pumpOn ||
+                gLast.pumpControlEnabled != state.pumpControlEnabled ||
+                gLast.leakFail != state.leakFail;
         const bool redrawWifi =
                 first || gLast.wifiIcon != state.wifiIcon || gLast.apMode != state.apMode ||
                 gLast.otaActive != state.otaActive;

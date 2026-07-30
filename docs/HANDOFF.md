@@ -40,7 +40,7 @@ Band layout in [`src/display.cpp`](../src/display.cpp) (`kHMax` / `kYMac`+`kHMac
 1. **MAX** — yellow on red (edit: black on yellow); FreeSansBold 24pt  
 2. **MAC** (AP mode only) — device MAC (`AA:BB:CC:DD:EE:FF`), white on black, centered; FreeSansBold **12pt**; strip at `kYMac=57` (5px gap under MAX), height 24px; blank when not AP  
 3. **Current** — cyan on black, **horizontally centered**; FreeSansBold 24pt  
-4. **Pump** — icon (not ON/OFF text); **green** when ON, **gray** when OFF  
+4. **Pump** — icon (not ON/OFF text); **green** when ON, **gray** when OFF, **red** when pump control is disabled (MQTT `disable` or LEAK timeout)  
 5. **WiFi** — blue icon to the right of the pump when STA connected or AP active; label **AP** under the icon in AP mode; label **OTA** under the icon when OTA is active (below **AP** when both)  
 6. **MIN** — white on dark green (edit: black on yellow); FreeSansBold 24pt  
 
@@ -55,14 +55,13 @@ Partial bar redraws only (no full-screen clear in normal updates).
 | Run | Default control |
 | Edit MAX / MIN | Short button: Run → EditMax → EditMin → Run; rotate ±0.001 MPa; idle **5 s** (button or rotate resets timer) |
 | SETTINGS | Hold button **≥ 3 s** |
-| Fail | **LEAK** timeout only; pump off; locked until reboot |
 
 ### Fail-safe / pump limits
 
 When the pump turns **ON**:
 
-1. **LEAK** (reach-min): if pressure has not reached **min** within `leakDetectSec` → enter **Fail** (latched until reboot).
-2. **WEAK** (max continuous run): if pump stays ON longer than `pumpWeakSec` → **pump OFF only** (no Fail). May turn ON again on the next loop if pressure is still below min (fresh weak timer).
+1. **LEAK** (reach-min): if pressure has not reached **min** within `leakDetectSec` → same as MQTT **`disable`**: pump OFF, auto control blocked (`gPumpControlEnabled = false`), pump icon **red**. UI stays interactive. Restore with MQTT **`enable`**.
+2. **WEAK** (max continuous run): if pump stays ON longer than `pumpWeakSec` → **pump OFF only** (control stays enabled). May turn ON again on the next loop if pressure is still below min (fresh weak timer).
 
 ### SETTINGS screen (LCD)
 
@@ -76,7 +75,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 | Setting | Range | Step | Default |
 |---------|-------|------|---------|
 | LEAK (reach min after pump ON) | 5–40 s | 1 s | 10 |
-| WEAK (max pump ON; then OFF, no Fail) | 40–600 s | 1 s | 180 |
+| WEAK (max pump ON; then OFF, control stays enabled) | 40–600 s | 1 s | 180 |
 | SENS (sensor full-scale) | 2.0–50.0 Atm | 0.1 Atm | 5.0 |
 
 ## Persistence & settings model
@@ -110,7 +109,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 - Created only when STA is connected (not in AP). Lazy-created later if WiFi connects after boot.
 - On connect (and on `topicToListenServerWasBorn` = `online`): publish device name to `topicTheDeviceIsAlive`; publish retained pump `"ON"`/`"OFF"` to `topicThePumpState/{mqttDeviceName}`; publish pressure (Atm, 2 decimals) to `topicPressureValue/{mqttDeviceName}`; subscribe to `topicToListenCommands/{mqttDeviceName}` and `topicToListenServerWasBorn` (default `homeassistant/status`).
 - Ongoing pump publish: on actual pump state change via `notifyPumpState` from `setPump` (retained). Ongoing pressure publish: only when `|Δatm| > mqtt>pressureUpdateDiffAtm` (default **0.05**, clamp **0.01–0.5**; Web UI step **0.01**). No pressure heartbeat.
-- Commands on `commands/{device}`: `enable` / `disable` (case-insensitive). `disable` forces pump OFF and blocks auto ON; `enable` restores auto control.
+- Commands on `commands/{device}`: `enable` / `disable` (case-insensitive). `disable` forces pump OFF, blocks auto ON, and shows pump icon **red**; `enable` restores auto control (green/gray icon). **LEAK** timeout uses the same disable path.
 - Setting `pressureUpdateDiffAtm` is appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to default on load.
 
 ### Web / LittleFS

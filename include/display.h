@@ -8,7 +8,6 @@ enum class UiMode : uint8_t {
     Run = 0,
     EditMax,
     EditMin,
-    Fail,
     Settings,
 };
 
@@ -27,6 +26,8 @@ struct UiState {
     float minMpa = 0.2f;
     float maxMpa = 0.35f;
     bool pumpOn = false;
+    bool pumpControlEnabled = true; // false after MQTT disable or LEAK (red icon)
+    bool leakFail = false;          // LEAK latch: red "E" left of pump; cleared by MQTT enable
     bool wifiIcon = false; // AP active or STA connected
     bool apMode = false;   // show "AP" under WiFi icon + MAC under MAX
     bool otaActive = false; // show "OTA" under WiFi icon (below AP when AP)

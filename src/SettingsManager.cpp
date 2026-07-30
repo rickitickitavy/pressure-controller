@@ -28,7 +28,11 @@ SettingsManager::SettingsManager(){
 
             LOGGER.warning("Upgrade settings to version " + String(GLOBAL_CURRENT_SETTINGS_VERSION));
 
-            // Future field migrations go here. No migrations needed yet.
+            // v1 -> v2: PressureSettings gained leakDetectEnabled (shifts trailing fields).
+            settings.pressure.leakDetectEnabled = true;
+            clampAdvanced(settings.pressure);
+            clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
+            clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
@@ -243,6 +247,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      minMpa: " + String(settings.pressure.minMpa));
     LOGGER.info("      maxMpa: " + String(settings.pressure.maxMpa));
     LOGGER.info("      leakDetectSec: " + String(settings.pressure.leakDetectSec));
+    LOGGER.info("      leakDetectEnabled: " + String(settings.pressure.leakDetectEnabled ? "true" : "false"));
     LOGGER.info("      pumpWeakSec: " + String(settings.pressure.pumpWeakSec));
     LOGGER.info("      sensorMaxMpa: " + String(settings.pressure.sensorMaxMpa));
 }

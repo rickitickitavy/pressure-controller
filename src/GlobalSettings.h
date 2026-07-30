@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define GLOBAL_CURRENT_SETTINGS_VERSION 1
+#define GLOBAL_CURRENT_SETTINGS_VERSION 2
 #define GLOBAL_SETTINGS_MARKER_0 0x31
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
@@ -54,6 +54,7 @@ struct PressureSettings {
     int leakDetectSec = 10; // time to reach min after pump ON
     int pumpWeakSec = 180; // max continuous pump ON
     float sensorMaxMpa = 0.500f; // ADC full-scale pressure
+    bool leakDetectEnabled = true; // when false, LEAK timeout is ignored
 };
 
 struct GlobalSettings {

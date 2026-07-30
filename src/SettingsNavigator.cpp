@@ -93,6 +93,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            static_cast<float>(LEAK_SEC_MAX),
                                                                            (void *) &settings->pressure.leakDetectSec,
                                                                            (void *) &settings->pressure.leakDetectSec);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>leakDetectEnabled", BOOLEAN, 0,
+                                                                           1,
+                                                                           (void *) &settings->pressure.leakDetectEnabled,
+                                                                           (void *) &settings->pressure.leakDetectEnabled);
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>pumpWeakSec", INTEGER,
                                                                            static_cast<float>(WEAK_SEC_MIN),
                                                                            static_cast<float>(WEAK_SEC_MAX),

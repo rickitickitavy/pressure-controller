@@ -34,6 +34,7 @@ namespace {
     bool gOtaEnabled = false;
     bool gLastWifiConnected = false;
     bool gPumpControlEnabled = true;
+    bool gLeakFail = false;
 
     void setPump(bool on) {
         if (on == gPumpOn) {
@@ -53,10 +54,13 @@ namespace {
         }
     }
 
-    void enterFail() {
-        setPump(false);
-        gMode = UiMode::Fail;
-        gThresholdsDirty = false;
+    void setPumpControlEnabled(bool enabled) {
+        gPumpControlEnabled = enabled;
+        if (!enabled) {
+            setPump(false);
+        } else {
+            gLeakFail = false;
+        }
     }
 
     void leaveEditToRun() {
@@ -216,14 +220,13 @@ namespace {
             case UiMode::EditMin:
                 leaveEditToRun();
                 break;
-            case UiMode::Fail:
             case UiMode::Settings:
                 break;
         }
     }
 
     void updateControl(float pressure) {
-        if (gMode == UiMode::Fail || gMode == UiMode::Settings) {
+        if (gMode == UiMode::Settings) {
             return;
         }
 
@@ -245,8 +248,10 @@ namespace {
         if (gAwaitingMin) {
             if (pressure >= gSettings.minMpa) {
                 gAwaitingMin = false;
-            } else if ((millis() - gAwaitingMinSinceMs) >= leakMs) {
-                enterFail();
+            } else if (gSettings.leakDetectEnabled &&
+                       (millis() - gAwaitingMinSinceMs) >= leakMs) {
+                gLeakFail = true;
+                setPumpControlEnabled(false);
                 return;
             }
         }
@@ -274,10 +279,7 @@ namespace {
         }
     }
     void onMqttPumpControl(bool enabled) {
-        gPumpControlEnabled = enabled;
-        if (!enabled) {
-            setPump(false);
-        }
+        setPumpControlEnabled(enabled);
     }
 
     void onMqttMessage(char *topic, byte *payload, unsigned int length) {
@@ -388,12 +390,7 @@ void loop() {
         startMqttIfNeeded();
     }
 
-    if (gMode == UiMode::Fail) {
-        (void) Encoder::consumePress();
-        (void) Encoder::consumeHoldPress();
-        (void) Encoder::consumeLongPress();
-        (void) Encoder::consumeSteps();
-    } else if (gMode == UiMode::Settings) {
+    if (gMode == UiMode::Settings) {
         (void) Encoder::consumeLongPress();
         handleSettingsButton();
         applySettingsEncoder(Encoder::consumeSteps());
@@ -430,6 +427,8 @@ void loop() {
         ui.minMpa = gSettings.minMpa;
         ui.maxMpa = gSettings.maxMpa;
         ui.pumpOn = gPumpOn;
+        ui.pumpControlEnabled = gPumpControlEnabled;
+        ui.leakFail = gLeakFail;
         ui.apMode = wiFiController->isApMode();
         ui.wifiIcon = ui.apMode || wifiConnected;
         ui.otaActive = gOtaEnabled;

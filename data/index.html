@@ -22,6 +22,7 @@
             var mqttPressureUpdateDiffAtm = document.getElementById("mqttPressureUpdateDiffAtm").value;
             var pressureMinAtm = document.getElementById("pressureMin").value;
             var pressureMaxAtm = document.getElementById("pressureMax").value;
+            var pressureLeakEnabled = document.getElementById("pressureLeakEnabled").checked ? "1" : "0";
             var pressureLeak = document.getElementById("pressureLeak").value;
             var pressureWeak = document.getElementById("pressureWeak").value;
             var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
@@ -58,6 +59,7 @@
                 + "|mqtt>pressureUpdateDiffAtm=" + mqttPressureUpdateDiffAtm
                 + "|pressure>minAtm=" + pressureMinAtm
                 + "|pressure>maxAtm=" + pressureMaxAtm
+                + "|pressure>leakDetectEnabled=" + pressureLeakEnabled
                 + "|pressure>leakDetectSec=" + pressureLeak
                 + "|pressure>pumpWeakSec=" + pressureWeak
                 + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
@@ -83,6 +85,10 @@
             var ota = document.getElementById("networkEnableOta");
             if (ota) {
                 ota.checked = ota.getAttribute("data-value") === "1";
+            }
+            var leakEnabled = document.getElementById("pressureLeakEnabled");
+            if (leakEnabled) {
+                leakEnabled.checked = leakEnabled.getAttribute("data-value") === "1";
             }
         }
 
@@ -227,6 +233,13 @@
             <div class="formParamValue">
                 <input id="pressureMax" class="formStringParamValue" type="number" step="0.01"
                        min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Leak detection enabled</div>
+            <div class="formParamValue">
+                <input id="pressureLeakEnabled" type="checkbox" data-value="%pressure>leakDetectEnabled%">
             </div>
         </div>
 
