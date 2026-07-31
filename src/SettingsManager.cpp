@@ -78,6 +78,9 @@ void SettingsManager::applyDefaults() {
     String(DEFAULT_TOPIC_TO_LISTEN_SERVER_WAS_BORN).toCharArray(
             settings.topicToListenServerWasBorn, sizeof(settings.topicToListenServerWasBorn));
 
+    String(DEFAULT_TOPIC_IS_THE_DEVICE_ENABLED).toCharArray(
+            settings.topicIsTheDeviceEnabled, sizeof(settings.topicIsTheDeviceEnabled));
+
     String("device").toCharArray(settings.mqttDeviceName, sizeof(settings.mqttDeviceName));
 
     settings.pressureUpdateDiffAtm = DEFAULT_MQTT_PRESSURE_UPDATE_DIFF_ATM;
@@ -252,6 +255,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      The name of topic to report the pressure value:             " + String(settings.topicPressureValue) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to say that the device is alive:          " + String(settings.topicToListenCommands) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to listen when server has born again:     " + String(settings.topicToListenServerWasBorn));
+    LOGGER.info("      The name of topic to report the device enabled:             " + String(settings.topicIsTheDeviceEnabled) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      Pressure update difference (Atm):                           " + String(settings.pressureUpdateDiffAtm));
     LOGGER.info("      Pressure publish min interval (sec):                        " + String(settings.pressurePubMinIntSec));
     LOGGER.info("      Pump state publish min interval (sec):                      " + String(settings.pumpStatePubMinIntSec));

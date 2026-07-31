@@ -88,6 +88,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX,
                                                                            (void *) &settings->pumpStatePubMinIntSec,
                                                                            (void *) &settings->pumpStatePubMinIntSec);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>topicIsTheDeviceEnabled", STRING, 2,
+                                                                           31,
+                                                                           (void *) &settings->topicIsTheDeviceEnabled[0],
+                                                                           (void *) &settings->topicIsTheDeviceEnabled[0]);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.0f,
                                                                            SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,

@@ -19,6 +19,7 @@
             var mqttTopicPressureValue = document.getElementById("mqttTopicPressureValue").value;
             var mqttTopicToListenCommands = document.getElementById("mqttTopicToListenCommands").value;
             var mqttTopicToListenServerWasBorn = document.getElementById("mqttTopicToListenServerWasBorn").value;
+            var mqttTopicIsTheDeviceEnabled = document.getElementById("mqttTopicIsTheDeviceEnabled").value;
             var mqttPressureUpdateDiffAtm = document.getElementById("mqttPressureUpdateDiffAtm").value;
             var mqttPressurePubMinIntSec = document.getElementById("mqttPressurePubMinIntSec").value;
             var mqttPumpStatePubMinIntSec = document.getElementById("mqttPumpStatePubMinIntSec").value;
@@ -58,6 +59,7 @@
                 + "|mqtt>topicPressureValue=" + mqttTopicPressureValue
                 + "|mqtt>topicToListenCommands=" + mqttTopicToListenCommands
                 + "|mqtt>topicToListenServerWasBorn=" + mqttTopicToListenServerWasBorn
+                + "|mqtt>topicIsTheDeviceEnabled=" + mqttTopicIsTheDeviceEnabled
                 + "|mqtt>pressureUpdateDiffAtm=" + mqttPressureUpdateDiffAtm
                 + "|mqtt>pressurePubMinIntSec=" + mqttPressurePubMinIntSec
                 + "|mqtt>pumpStatePubMinIntSec=" + mqttPumpStatePubMinIntSec
@@ -141,19 +143,19 @@
     </br>
 
     <div class="formHeader">
-        Mqtt settings
+        MQTT settings
     </div>
 
     <div class="form-flex-vertical-container">
         <div class="form-inputField-container">
-            <div class="formParamCaption">Mqtt server</div>
+            <div class="formParamCaption">MQTT server</div>
             <div class="formParamValue">
                 <input id="mqttServer" class="formStringParamValue" value="%mqtt>server%">
             </div>
         </div>
 
         <div class="form-inputField-container">
-            <div class="formParamCaption">Mqtt port</div>
+            <div class="formParamCaption">MQTT port</div>
             <div class="formParamValue">
                 <input id="mqttPort" class="formStringParamValue" value="%mqtt>port%">
             </div>
@@ -167,7 +169,7 @@
         </div>
 
         <div class="form-inputField-container">
-            <div class="formParamCaption">Mqtt reconnect interval (Ms)</div>
+            <div class="formParamCaption">MQTT reconnect interval (ms)</div>
             <div class="formParamValue">
                 <input id="mqttReconnectIntervalMs" class="formStringParamValue" value="%mqtt>reconnectIntervalMs%">
             </div>
@@ -181,28 +183,35 @@
         </div>
 
         <div class="form-inputField-container">
-            <div class="formParamCaption">The name of topic to report the pump state</div>
+            <div class="formParamCaption">The name of the topic to report the pump state</div>
             <div class="formParamValue">
                 <input id="mqttTopicThePumpState" class="formStringParamValue" value="%mqtt>topicThePumpState%">
             </div>
         </div>
 
         <div class="form-inputField-container">
-            <div class="formParamCaption">The name of topic to report the pressure value</div>
+            <div class="formParamCaption">The name of the topic to report that the device is enabled</div>
+            <div class="formParamValue">
+                <input id="mqttTopicIsTheDeviceEnabled" class="formStringParamValue" value="%mqtt>topicIsTheDeviceEnabled%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to report the pressure value</div>
             <div class="formParamValue">
                 <input id="mqttTopicPressureValue" class="formStringParamValue" value="%mqtt>topicPressureValue%">
             </div>
         </div>
 
         <div class="form-inputField-container">
-            <div class="formParamCaption">The name of topic to listen for commands</div>
+            <div class="formParamCaption">The name of the topic to listen for commands</div>
             <div class="formParamValue">
                 <input id="mqttTopicToListenCommands" class="formStringParamValue" value="%mqtt>topicToListenCommands%">
             </div>
         </div>
 
         <div class="form-inputField-container">
-            <div class="formParamCaption">The name of topic to listen when server has born again</div>
+            <div class="formParamCaption">The name of the topic to listen when the server has been born again</div>
             <div class="formParamValue">
                 <input id="mqttTopicToListenServerWasBorn" class="formStringParamValue" value="%mqtt>topicToListenServerWasBorn%">
             </div>

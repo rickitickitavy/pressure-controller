@@ -61,6 +61,9 @@ namespace {
         } else {
             gLeakFail = false;
         }
+        if (mqtt != nullptr) {
+            mqtt->notifyDeviceEnabled(enabled);
+        }
     }
 
     void leaveEditToRun() {
@@ -295,6 +298,7 @@ namespace {
         mqtt = new MqttClient(settingsManager->getSettings());
         mqtt->setMessageCallback(onMqttMessage);
         mqtt->setPumpControlHandler(onMqttPumpControl);
+        mqtt->notifyDeviceEnabled(gPumpControlEnabled);
         LOGGER.info("MQTT client started");
     }
 } // namespace

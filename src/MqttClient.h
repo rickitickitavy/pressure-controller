@@ -28,6 +28,7 @@ private:
     String topicPumpState;
     String topicPressure;
     String topicCommands;
+    String topicDeviceEnabled;
 
     float lastPublishedPressureAtm = 0.0f;
     bool hasPublishedPressure = false;
@@ -39,6 +40,7 @@ private:
 
     // Pending runtime snapshot for bootstrap publish from callback / reconnect.
     bool pendingPumpOn = false;
+    bool pendingDeviceEnabled = true;
     float pendingPressureMpa = 0.0f;
 
     void reconnect();
@@ -47,6 +49,7 @@ private:
     void publishAlive();
     void publishState(bool pumpOn, bool force);
     void publishPressure(float pressureMpa, bool force);
+    void publishDeviceEnabled(bool enabled);
     void publishBootstrap();
     bool pressureIntervalElapsed() const;
     bool pumpStateIntervalElapsed() const;
@@ -62,6 +65,9 @@ public:
 
     /** Publish pump ON/OFF when the relay state actually changes (not from dispatch polling). */
     void notifyPumpState(bool pumpOn);
+
+    /** Publish device enabled ON/OFF (MQTT enable/disable, LEAK, boot). */
+    void notifyDeviceEnabled(bool enabled);
 
     void dispatch(bool pumpOn, float pressureMpa);
 };

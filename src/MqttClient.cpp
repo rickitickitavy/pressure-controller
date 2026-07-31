@@ -76,6 +76,14 @@ void MqttClient::publishState(bool pumpOn, bool force) {
     pumpStatePublishPending = false;
 }
 
+void MqttClient::publishDeviceEnabled(bool enabled) {
+    if (!client->connected() || topicDeviceEnabled.length() == 0) {
+        return;
+    }
+    const char *payload = enabled ? "ON" : "OFF";
+    client->publish(topicDeviceEnabled.c_str(), payload, true);
+}
+
 void MqttClient::publishPressure(float pressureMpa, bool force) {
     if (!client->connected() || topicPressure.length() == 0) {
         return;
@@ -101,6 +109,7 @@ void MqttClient::publishPressure(float pressureMpa, bool force) {
 void MqttClient::publishBootstrap() {
     publishAlive();
     publishState(pendingPumpOn, true);
+    publishDeviceEnabled(pendingDeviceEnabled);
     publishPressure(pendingPressureMpa, true);
     forcePublishBootstrap = false;
 }
@@ -115,6 +124,8 @@ void MqttClient::reconnect() {
             topicPumpState = String(settings->topicThePumpState) + "/" + String(settings->mqttDeviceName);
             topicPressure = String(settings->topicPressureValue) + "/" + String(settings->mqttDeviceName);
             topicCommands = String(settings->topicToListenCommands) + "/" + String(settings->mqttDeviceName);
+            topicDeviceEnabled =
+                    String(settings->topicIsTheDeviceEnabled) + "/" + String(settings->mqttDeviceName);
 
             publishBootstrap();
 
@@ -138,12 +149,12 @@ void MqttClient::handleMessage(const String &topic, const String &payload) {
         String cmd = payload;
         cmd.trim();
         cmd.toLowerCase();
-        if (cmd == "enable") {
+        if (cmd == "on") {
             LOGGER.info("MQTT command: enable");
             if (pumpControlHandler != nullptr) {
                 pumpControlHandler(true);
             }
-        } else if (cmd == "disable") {
+        } else if (cmd == "off") {
             LOGGER.info("MQTT command: disable");
             if (pumpControlHandler != nullptr) {
                 pumpControlHandler(false);
@@ -158,6 +169,7 @@ void MqttClient::handleMessage(const String &topic, const String &payload) {
         String status = payload;
         status.trim();
         status.toLowerCase();
+            LOGGER.info("MQTT server was born");
         if (status == "online") {
             LOGGER.info("MQTT server was born (online) — republishing state");
             forcePublishBootstrap = true;
@@ -185,6 +197,11 @@ void MqttClient::onMessage(char *topic, byte *payload, unsigned int length) {
 void MqttClient::notifyPumpState(bool pumpOn) {
     pendingPumpOn = pumpOn;
     publishState(pumpOn, false);
+}
+
+void MqttClient::notifyDeviceEnabled(bool enabled) {
+    pendingDeviceEnabled = enabled;
+    publishDeviceEnabled(enabled);
 }
 
 void MqttClient::dispatch(bool pumpOn, float pressureMpa) {

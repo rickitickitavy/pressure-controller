@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #define GLOBAL_CURRENT_SETTINGS_VERSION 2
-#define GLOBAL_SETTINGS_MARKER_0 0x30
+#define GLOBAL_SETTINGS_MARKER_0 0x31
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
 #define GLOBAL_SETTINGS_MARKER_3 0x37
@@ -141,6 +141,11 @@ struct GlobalSettings {
      * Min seconds between change-driven pump-state publishes (appended; no schema version bump).
      */
     int pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
+
+    /**
+     * Topic to report whether pump control is enabled (appended; no schema version bump).
+     */
+    char topicIsTheDeviceEnabled[32];
 };
 
 #endif //EFLAME328_SETTINGS_H
