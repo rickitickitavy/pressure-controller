@@ -78,6 +78,16 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            MQTT_PRESSURE_UPDATE_DIFF_MAX_ATM,
                                                                            (void *) &settings->pressureUpdateDiffAtm,
                                                                            (void *) &settings->pressureUpdateDiffAtm);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>pressurePubMinIntSec", INTEGER,
+                                                                           MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN,
+                                                                           MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX,
+                                                                           (void *) &settings->pressurePubMinIntSec,
+                                                                           (void *) &settings->pressurePubMinIntSec);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>pumpStatePubMinIntSec", INTEGER,
+                                                                           MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN,
+                                                                           MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX,
+                                                                           (void *) &settings->pumpStatePubMinIntSec,
+                                                                           (void *) &settings->pumpStatePubMinIntSec);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.0f,
                                                                            SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,

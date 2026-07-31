@@ -30,18 +30,18 @@ SettingsManager::SettingsManager(){
 
             // v1 -> v2: PressureSettings gained leakDetectEnabled (shifts trailing fields).
             settings.pressure.leakDetectEnabled = true;
-            clampAdvanced(settings.pressure);
-            clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
-            clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
             saveSetting(false);
-        } else {
-            clampAdvanced(settings.pressure);
-            clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
-            clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
         }
+
+        // Sanitize out-of-range EEPROM values (no schema version bump for these fields).
+        clampAdvanced(settings.pressure);
+        clampPair(settings.pressure.minMpa, settings.pressure.maxMpa, settings.pressure.sensorMaxMpa);
+        clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
+        clampMqttPublishMinInterval(settings.pressurePubMinIntSec);
+        clampMqttPublishMinInterval(settings.pumpStatePubMinIntSec);
     }
 
 
@@ -81,6 +81,8 @@ void SettingsManager::applyDefaults() {
     String("device").toCharArray(settings.mqttDeviceName, sizeof(settings.mqttDeviceName));
 
     settings.pressureUpdateDiffAtm = DEFAULT_MQTT_PRESSURE_UPDATE_DIFF_ATM;
+    settings.pressurePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
+    settings.pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
 
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
@@ -92,6 +94,14 @@ void SettingsManager::clampPressureUpdateDiff(float &diffAtm) {
     if (!(diffAtm >= MQTT_PRESSURE_UPDATE_DIFF_MIN_ATM &&
           diffAtm <= MQTT_PRESSURE_UPDATE_DIFF_MAX_ATM)) {
         diffAtm = MQTT_PRESSURE_UPDATE_DIFF_DEFAULT_ATM;
+    }
+}
+//--------------------------------------------------------------------
+
+void SettingsManager::clampMqttPublishMinInterval(int &intervalSec) {
+    if (intervalSec < MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN ||
+        intervalSec > MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX) {
+        intervalSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
     }
 }
 //--------------------------------------------------------------------
@@ -243,6 +253,8 @@ void SettingsManager::logSettings() {
     LOGGER.info("      The name of topic to say that the device is alive:          " + String(settings.topicToListenCommands) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to listen when server has born again:     " + String(settings.topicToListenServerWasBorn));
     LOGGER.info("      Pressure update difference (Atm):                           " + String(settings.pressureUpdateDiffAtm));
+    LOGGER.info("      Pressure publish min interval (sec):                        " + String(settings.pressurePubMinIntSec));
+    LOGGER.info("      Pump state publish min interval (sec):                      " + String(settings.pumpStatePubMinIntSec));
     LOGGER.info("   pressure:");
     LOGGER.info("      minMpa: " + String(settings.pressure.minMpa));
     LOGGER.info("      maxMpa: " + String(settings.pressure.maxMpa));

@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 #define GLOBAL_CURRENT_SETTINGS_VERSION 2
-#define GLOBAL_SETTINGS_MARKER_0 0x31
+#define GLOBAL_SETTINGS_MARKER_0 0x30
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
 #define GLOBAL_SETTINGS_MARKER_3 0x37
@@ -28,6 +28,10 @@ constexpr int WEAK_SEC_MAX = 600;
 constexpr float MQTT_PRESSURE_UPDATE_DIFF_MIN_ATM = 0.01f;
 constexpr float MQTT_PRESSURE_UPDATE_DIFF_MAX_ATM = 0.5f;
 constexpr float MQTT_PRESSURE_UPDATE_DIFF_DEFAULT_ATM = 0.05f;
+
+constexpr int MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN = 5;
+constexpr int MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX = 120;
+constexpr int MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT = 10;
 
 struct NetworkSettings {
     /**
@@ -127,6 +131,16 @@ struct GlobalSettings {
      * Publish pressure over MQTT only when |Δatm| exceeds this value (appended; no schema version bump).
      */
     float pressureUpdateDiffAtm = MQTT_PRESSURE_UPDATE_DIFF_DEFAULT_ATM;
+
+    /**
+     * Min seconds between change-driven pressure publishes (appended; no schema version bump).
+     */
+    int pressurePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
+
+    /**
+     * Min seconds between change-driven pump-state publishes (appended; no schema version bump).
+     */
+    int pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
 };
 
 #endif //EFLAME328_SETTINGS_H

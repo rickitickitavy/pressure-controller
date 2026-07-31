@@ -20,6 +20,8 @@
             var mqttTopicToListenCommands = document.getElementById("mqttTopicToListenCommands").value;
             var mqttTopicToListenServerWasBorn = document.getElementById("mqttTopicToListenServerWasBorn").value;
             var mqttPressureUpdateDiffAtm = document.getElementById("mqttPressureUpdateDiffAtm").value;
+            var mqttPressurePubMinIntSec = document.getElementById("mqttPressurePubMinIntSec").value;
+            var mqttPumpStatePubMinIntSec = document.getElementById("mqttPumpStatePubMinIntSec").value;
             var pressureMinAtm = document.getElementById("pressureMin").value;
             var pressureMaxAtm = document.getElementById("pressureMax").value;
             var pressureLeakEnabled = document.getElementById("pressureLeakEnabled").checked ? "1" : "0";
@@ -57,6 +59,8 @@
                 + "|mqtt>topicToListenCommands=" + mqttTopicToListenCommands
                 + "|mqtt>topicToListenServerWasBorn=" + mqttTopicToListenServerWasBorn
                 + "|mqtt>pressureUpdateDiffAtm=" + mqttPressureUpdateDiffAtm
+                + "|mqtt>pressurePubMinIntSec=" + mqttPressurePubMinIntSec
+                + "|mqtt>pumpStatePubMinIntSec=" + mqttPumpStatePubMinIntSec
                 + "|pressure>minAtm=" + pressureMinAtm
                 + "|pressure>maxAtm=" + pressureMaxAtm
                 + "|pressure>leakDetectEnabled=" + pressureLeakEnabled
@@ -209,6 +213,22 @@
             <div class="formParamValue">
                 <input id="mqttPressureUpdateDiffAtm" class="formStringParamValue" type="number"
                        min="0.01" max="0.5" step="0.01" value="%mqtt>pressureUpdateDiffAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Pressure publish min interval (sec)</div>
+            <div class="formParamValue">
+                <input id="mqttPressurePubMinIntSec" class="formStringParamValue" type="number"
+                       min="5" max="120" step="1" value="%mqtt>pressurePubMinIntSec%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Pump state publish min interval (sec)</div>
+            <div class="formParamValue">
+                <input id="mqttPumpStatePubMinIntSec" class="formStringParamValue" type="number"
+                       min="5" max="120" step="1" value="%mqtt>pumpStatePubMinIntSec%">
             </div>
         </div>
 

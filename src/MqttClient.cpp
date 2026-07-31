@@ -29,6 +29,18 @@ void MqttClient::setMessageCallback(MessageCallback cb) {
     client->setCallback(cb);
 }
 
+bool MqttClient::pressureIntervalElapsed() const {
+    const unsigned long intervalMs =
+            static_cast<unsigned long>(settings->pressurePubMinIntSec) * 1000UL;
+    return lastPressurePublishMs == 0 || (millis() - lastPressurePublishMs) >= intervalMs;
+}
+
+bool MqttClient::pumpStateIntervalElapsed() const {
+    const unsigned long intervalMs =
+            static_cast<unsigned long>(settings->pumpStatePubMinIntSec) * 1000UL;
+    return lastPumpStatePublishMs == 0 || (millis() - lastPumpStatePublishMs) >= intervalMs;
+}
+
 void MqttClient::checkConnection() {
     if (!WiFi.isConnected()) {
         return;
@@ -50,12 +62,18 @@ void MqttClient::publishAlive() {
     client->publish(settings->topicTheDeviceIsAlive, settings->mqttDeviceName);
 }
 
-void MqttClient::publishState(bool pumpOn) {
+void MqttClient::publishState(bool pumpOn, bool force) {
     if (!client->connected() || topicPumpState.length() == 0) {
+        return;
+    }
+    if (!force && !pumpStateIntervalElapsed()) {
+        pumpStatePublishPending = true;
         return;
     }
     const char *payload = pumpOn ? "ON" : "OFF";
     client->publish(topicPumpState.c_str(), payload, true);
+    lastPumpStatePublishMs = millis();
+    pumpStatePublishPending = false;
 }
 
 void MqttClient::publishPressure(float pressureMpa, bool force) {
@@ -68,17 +86,21 @@ void MqttClient::publishPressure(float pressureMpa, bool force) {
         if (!(diff > settings->pressureUpdateDiffAtm)) {
             return;
         }
+        if (!pressureIntervalElapsed()) {
+            return;
+        }
     }
     char buf[16];
     snprintf(buf, sizeof(buf), "%.2f", atm);
     client->publish(topicPressure.c_str(), buf, false);
     lastPublishedPressureAtm = atm;
     hasPublishedPressure = true;
+    lastPressurePublishMs = millis();
 }
 
 void MqttClient::publishBootstrap() {
     publishAlive();
-    publishState(pendingPumpOn);
+    publishState(pendingPumpOn, true);
     publishPressure(pendingPressureMpa, true);
     forcePublishBootstrap = false;
 }
@@ -162,7 +184,7 @@ void MqttClient::onMessage(char *topic, byte *payload, unsigned int length) {
 
 void MqttClient::notifyPumpState(bool pumpOn) {
     pendingPumpOn = pumpOn;
-    publishState(pumpOn);
+    publishState(pumpOn, false);
 }
 
 void MqttClient::dispatch(bool pumpOn, float pressureMpa) {
@@ -178,6 +200,9 @@ void MqttClient::dispatch(bool pumpOn, float pressureMpa) {
     if (forcePublishBootstrap) {
         publishBootstrap();
     } else {
+        if (pumpStatePublishPending) {
+            publishState(pendingPumpOn, false);
+        }
         publishPressure(pressureMpa, false);
     }
 }

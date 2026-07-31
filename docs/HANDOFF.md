@@ -81,7 +81,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 ## Persistence & settings model
 
 - Stored in **EEPROM** (4096 bytes) via [`src/SettingsManager.cpp`](../src/SettingsManager.cpp) — **not** `Preferences`/NVS.
-- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 1`). No brightness field.
+- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 2`). No brightness field.
 - First boot (invalid marker): single `SettingsManager::applyDefaults()` fills all defaults, then save + restart.
 - Version mismatch: upgrade branch kept (log + stamp version + save) but **no field migrations** yet.
 - Web/API parameter names: [`src/SettingsNavigator.cpp`](../src/SettingsNavigator.cpp) + `ParamDescriptor` (incl. `BOOLEAN`, pressure `*`, `network>enableOtaOnNetwork`).
@@ -108,9 +108,9 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 
 - Created only when STA is connected (not in AP). Lazy-created later if WiFi connects after boot.
 - On connect (and on `topicToListenServerWasBorn` = `online`): publish device name to `topicTheDeviceIsAlive`; publish retained pump `"ON"`/`"OFF"` to `topicThePumpState/{mqttDeviceName}`; publish pressure (Atm, 2 decimals) to `topicPressureValue/{mqttDeviceName}`; subscribe to `topicToListenCommands/{mqttDeviceName}` and `topicToListenServerWasBorn` (default `homeassistant/status`).
-- Ongoing pump publish: on actual pump state change via `notifyPumpState` from `setPump` (retained). Ongoing pressure publish: only when `|Δatm| > mqtt>pressureUpdateDiffAtm` (default **0.05**, clamp **0.01–0.5**; Web UI step **0.01**). No pressure heartbeat.
+- Ongoing pump publish: on actual pump state change via `notifyPumpState` from `setPump` (retained), rate-limited by `mqtt>pumpStatePubMinIntSec` (default **10**, clamp **5–120**). Changes during cooldown are held and published with the latest state once the interval elapses. Ongoing pressure publish: only when `|Δatm| > mqtt>pressureUpdateDiffAtm` (default **0.05**, clamp **0.01–0.5**; Web UI step **0.01**) and at least `mqtt>pressurePubMinIntSec` (default **10**, clamp **5–120**) has passed since the last pressure publish. No pressure heartbeat.
 - Commands on `commands/{device}`: `enable` / `disable` (case-insensitive). `disable` forces pump OFF, blocks auto ON, and shows pump icon **red**; `enable` restores auto control (green/gray icon). **LEAK** timeout uses the same disable path.
-- Setting `pressureUpdateDiffAtm` is appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to default on load.
+- Settings `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, and `pumpStatePubMinIntSec` are appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to defaults on load.
 
 ### Web / LittleFS
 

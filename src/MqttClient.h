@@ -33,6 +33,10 @@ private:
     bool hasPublishedPressure = false;
     bool forcePublishBootstrap = false;
 
+    unsigned long lastPressurePublishMs = 0;
+    unsigned long lastPumpStatePublishMs = 0;
+    bool pumpStatePublishPending = false;
+
     // Pending runtime snapshot for bootstrap publish from callback / reconnect.
     bool pendingPumpOn = false;
     float pendingPressureMpa = 0.0f;
@@ -41,9 +45,11 @@ private:
     void checkConnection();
     void handleMessage(const String &topic, const String &payload);
     void publishAlive();
-    void publishState(bool pumpOn);
+    void publishState(bool pumpOn, bool force);
     void publishPressure(float pressureMpa, bool force);
     void publishBootstrap();
+    bool pressureIntervalElapsed() const;
+    bool pumpStateIntervalElapsed() const;
 
 public:
     MqttClient(GlobalSettings *settings);

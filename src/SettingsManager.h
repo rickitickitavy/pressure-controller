@@ -69,6 +69,8 @@ public:
 
     static void clampPressureUpdateDiff(float& diffAtm);
 
+    static void clampMqttPublishMinInterval(int& intervalSec);
+
     /**
      * Сброс настроек WiFi в дефолтовые
      */
