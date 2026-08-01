@@ -29,6 +29,7 @@
             var pressureLeak = document.getElementById("pressureLeak").value;
             var pressureWeak = document.getElementById("pressureWeak").value;
             var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
+            var displayRotate180 = document.getElementById("displayRotate180").checked ? "1" : "0";
 
             var saveNetworkSettings = function(){
                 $.ajax({
@@ -69,6 +70,7 @@
                 + "|pressure>leakDetectSec=" + pressureLeak
                 + "|pressure>pumpWeakSec=" + pressureWeak
                 + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
+                + "|display>rotate180=" + displayRotate180
                 ,
                 success: function (response) {
                     if (response != undefined){
@@ -95,6 +97,10 @@
             var leakEnabled = document.getElementById("pressureLeakEnabled");
             if (leakEnabled) {
                 leakEnabled.checked = leakEnabled.getAttribute("data-value") === "1";
+            }
+            var rotate180 = document.getElementById("displayRotate180");
+            if (rotate180) {
+                rotate180.checked = rotate180.getAttribute("data-value") === "1";
             }
         }
 
@@ -136,6 +142,22 @@
             <div class="formParamCaption">Enable OTA on network (STA)</div>
             <div class="formParamValue">
                 <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
+            </div>
+        </div>
+
+    </div>
+    </br>
+
+    <div class="formHeader">
+        Display settings
+    </div>
+
+    <div class="form-flex-vertical-container">
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Rotate screen 180&deg;</div>
+            <div class="formParamValue">
+                <input id="displayRotate180" type="checkbox" data-value="%display>rotate180%">
             </div>
         </div>
 

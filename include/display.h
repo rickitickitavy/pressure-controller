@@ -38,7 +38,7 @@ struct UiState {
 };
 
 namespace Display {
-    void begin();
+    void begin(bool rotate180);
 
     void render(const UiState &state);
 

@@ -5,6 +5,7 @@
 
 #include <EEPROM.h>
 #include <math.h>
+#include <string.h>
 
 SettingsManager::SettingsManager(){
 
@@ -42,6 +43,13 @@ SettingsManager::SettingsManager(){
         clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
         clampMqttPublishMinInterval(settings.pressurePubMinIntSec);
         clampMqttPublishMinInterval(settings.pumpStatePubMinIntSec);
+        {
+            uint8_t raw = 0;
+            memcpy(&raw, &settings.displayRotate180, sizeof(raw));
+            if (raw > 1) {
+                settings.displayRotate180 = false;
+            }
+        }
     }
 
 
@@ -86,6 +94,7 @@ void SettingsManager::applyDefaults() {
     settings.pressureUpdateDiffAtm = DEFAULT_MQTT_PRESSURE_UPDATE_DIFF_ATM;
     settings.pressurePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
     settings.pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
+    settings.displayRotate180 = false;
 
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);

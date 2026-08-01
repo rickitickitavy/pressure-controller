@@ -315,13 +315,14 @@ namespace {
 } // namespace
 
 namespace Display {
-    void begin() {
+    void begin(bool rotate180) {
         spiTft.begin(PIN_TFT_SCLK, PIN_TFT_MISO, PIN_TFT_MOSI, PIN_TFT_CS);
         tft.init(TFT_WIDTH, TFT_HEIGHT);
-        // #region agent log
-        constexpr uint8_t kRotation = 2;
-        tft.setRotation(kRotation);
-        // #endregion
+        uint8_t rotation = 2;
+        if (rotate180) {
+            rotation = static_cast<uint8_t>((rotation + 2) % 4);
+        }
+        tft.setRotation(rotation);
         tft.fillScreen(ST77XX_BLACK);
         gHasLast = false;
         gSettingsLayout = false;
