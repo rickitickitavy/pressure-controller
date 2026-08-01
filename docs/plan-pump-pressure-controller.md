@@ -44,7 +44,7 @@ Prefer [`HANDOFF.md`](HANDOFF.md) as the live truth; this plan tracks the intend
 | ST7789 DC | 2 |
 | ST7789 RST | 3 |
 
-No backlight pin (always on with power). Display **240×320** ST7789 (SPI), rotation 180°. Pins in [`include/pins.h`](../include/pins.h).
+No backlight pin (always on with power). Display **240×320** ST7789 (SPI), base rotation 180° (`setRotation(2)`); optional Web `display>rotate180` adds +180°. Pins in [`include/pins.h`](../include/pins.h).
 
 ## Behavior
 
@@ -80,7 +80,7 @@ stateDiagram-v2
 ## Networking (added on `feature/add-mqtt-connection`)
 
 - **WiFi STA** with reconnect; **AP** if encoder button held at boot (5 min timeout). In AP mode LCD shows MAC under MAX.
-- **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT **and** `PressureSettings` (min/max/leak/weak/sensor; Atm in UI).
+- **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT/Display (`display>rotate180`) **and** `PressureSettings` (min/max/leak/weak/sensor; Atm in UI).
 - **ArduinoOTA**: always while AP is up; in STA only when `network.enableOtaOnNetwork` is true (default false). LCD shows **OTA** under the WiFi icon when active.
 - **MQTT**: connect; publish alive / pump state / pressure; `enable`/`disable` commands; `pressureUpdateDiffAtm` gate. See [`HANDOFF.md`](HANDOFF.md).
 
