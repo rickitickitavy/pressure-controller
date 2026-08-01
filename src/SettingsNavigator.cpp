@@ -92,6 +92,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            31,
                                                                            (void *) &settings->topicIsTheDeviceEnabled[0],
                                                                            (void *) &settings->topicIsTheDeviceEnabled[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("display>rotate180", BOOLEAN, 0,
+                                                                           1,
+                                                                           (void *) &settings->displayRotate180,
+                                                                           (void *) &settings->displayRotate180);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.0f,
                                                                            SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,

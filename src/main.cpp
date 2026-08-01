@@ -373,7 +373,7 @@ void setup() {
 
     Pressure::begin(PIN_PRESSURE);
     Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
-    Display::begin();
+    Display::begin(settingsManager->getSettings()->displayRotate180);
 
     delay(50);
     const bool forceAp = digitalRead(PIN_ENCODER_BTN) == LOW;

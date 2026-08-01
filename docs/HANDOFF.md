@@ -22,7 +22,7 @@ Use this file plus the plan copies in `docs/` when starting a new chat (`@docs/H
 | ST7789 DC | 2 |
 | ST7789 RST | 3 |
 
-- Display: **240×320**, rotation **180°** (`setRotation(2)`), no backlight pin.
+- Display: **240×320**, base rotation **180°** (`setRotation(2)`), no backlight pin. Web setting `display>rotate180` (default **OFF**): when **ON**, adds another 180° → `setRotation(0)`. Applied in `Display::begin` at boot.
 - Pins defined in [`include/pins.h`](../include/pins.h).
 - UI rule: never upscale fonts/icons (`setTextSize(1)` + native GFXfonts / 1:1 bitmaps). See `.cursor/rules/no-font-upscale.mdc`.
 
@@ -82,10 +82,10 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 ## Persistence & settings model
 
 - Stored in **EEPROM** (4096 bytes) via [`src/SettingsManager.cpp`](../src/SettingsManager.cpp) — **not** `Preferences`/NVS.
-- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 2`). No brightness field.
+- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), `displayRotate180` (bool), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 2`). No brightness field.
 - First boot (invalid marker): single `SettingsManager::applyDefaults()` fills all defaults, then save + restart.
 - Version mismatch: upgrade branch kept (log + stamp version + save) but **no field migrations** yet.
-- Web/API parameter names: [`src/SettingsNavigator.cpp`](../src/SettingsNavigator.cpp) + `ParamDescriptor` (incl. `BOOLEAN`, pressure `*`, `network>enableOtaOnNetwork`).
+- Web/API parameter names: [`src/SettingsNavigator.cpp`](../src/SettingsNavigator.cpp) + `ParamDescriptor` (incl. `BOOLEAN`, pressure `*`, `network>enableOtaOnNetwork`, `display>rotate180`).
 - Compile-time WiFi/MQTT defaults: [`src/Defines.h`](../src/Defines.h) (do not commit secrets into docs).
 - Pressure min/max + advanced settings save through `SettingsManager::savePressure` / `saveSetting` (web writes also clamp pressure).
 
@@ -111,14 +111,14 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 - On connect (and on `topicToListenServerWasBorn` = `online`): publish device name to `topicTheDeviceIsAlive`; publish retained pump `"ON"`/`"OFF"` to `topicThePumpState/{mqttDeviceName}`; publish pressure (Atm, 2 decimals) to `topicPressureValue/{mqttDeviceName}`; subscribe to `topicToListenCommands/{mqttDeviceName}` and `topicToListenServerWasBorn` (default `homeassistant/status`).
 - Ongoing pump publish: on actual pump state change via `notifyPumpState` from `setPump` (retained), rate-limited by `mqtt>pumpStatePubMinIntSec` (default **10**, clamp **5–120**). Changes during cooldown are held and published with the latest state once the interval elapses. Ongoing pressure publish: only when `|Δatm| > mqtt>pressureUpdateDiffAtm` (default **0.05**, clamp **0.01–0.5**; Web UI step **0.01**) and at least `mqtt>pressurePubMinIntSec` (default **10**, clamp **5–120**) has passed since the last pressure publish. No pressure heartbeat.
 - Commands on `commands/{device}`: `enable` / `disable` (case-insensitive). `disable` forces pump OFF, blocks auto ON, and shows pump icon **red**; `enable` restores auto control (green/gray icon). **LEAK** timeout uses the same disable path.
-- Settings `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, and `pumpStatePubMinIntSec` are appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to defaults on load.
+- Settings `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`, and `displayRotate180` are appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to defaults on load (`displayRotate180` default **false** / OFF).
 
 ### Web / LittleFS
 
 - Filesystem: **LittleFS** (`board_build.filesystem = littlefs`); assets under [`data/`](../data/) (`index.html`, `css/`, `js/`).
 - Flash FS: `pio run -t uploadfs` (in addition to firmware upload).
 - Server: [`src/WebServerController.cpp`](../src/WebServerController.cpp) on port **80**
-  - `/`, `/index.html` — WiFi (incl. Enable OTA on network), MQTT, and PressureSettings page (API keys `pressure>minAtm` / `maxAtm` / `sensorMaxAtm`; pressures in Atm only)
+  - `/`, `/index.html` — WiFi (incl. Enable OTA on network), Display (`display>rotate180`), MQTT, and PressureSettings page (API keys `pressure>minAtm` / `maxAtm` / `sensorMaxAtm`; pressures in Atm only)
   - `/settingsApi` — read/write parameters
   - `/log` — in-memory logger dump
   - other paths served from LittleFS

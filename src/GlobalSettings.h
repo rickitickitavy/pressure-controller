@@ -146,6 +146,12 @@ struct GlobalSettings {
      * Topic to report whether pump control is enabled (appended; no schema version bump).
      */
     char topicIsTheDeviceEnabled[32];
+
+    /**
+     * When true, add 180° to the base TFT rotation (appended; no schema version bump).
+     * Default OFF.
+     */
+    bool displayRotate180 = false;
 };
 
 #endif //EFLAME328_SETTINGS_H
