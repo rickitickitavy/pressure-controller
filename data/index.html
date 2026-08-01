@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pump WiFi settings</title>
     <link rel="stylesheet" type="text/css" href="css/all.css"/>
-    <script src="js/jq/jquery-3.4.1.js"></script>
-    <script language="JavaScript">
+    <script>
         function saveSystemSettings() {
             var wiFiSsId = document.getElementById("wiFiSSID").value;
             var wiFiPassword = document.getElementById("wiFiPassword").value;
@@ -31,27 +31,24 @@
             var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
             var displayRotate180 = document.getElementById("displayRotate180").checked ? "1" : "0";
 
-            var saveNetworkSettings = function(){
-                $.ajax({
-                    url: "/settingsApi",
+            var saveNetworkSettings = function () {
+                fetch("/settingsApi", {
                     method: "POST",
-                    data: "operation=write&parameter=wifi&network>ssid=" + wiFiSsId
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: "operation=write&parameter=wifi&network>ssid=" + wiFiSsId
                         + "&network>password=" + wiFiPassword
-                        + "&network>enableOtaOnNetwork=" + networkEnableOta,
-                    success: function (response) {
-                        window.location = "/";
-                    }.bind(this),
-                    error: function (error) {
-                        alert(error.statusText);
-                    }.bind(this),
-                    dataType: "json"
+                        + "&network>enableOtaOnNetwork=" + networkEnableOta
+                }).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error(response.statusText || ("HTTP " + response.status));
+                    }
+                    window.location = "/";
+                }).catch(function (error) {
+                    alert(error.message || String(error));
                 });
-            }.bind(this);
+            };
 
-            $.ajax({
-                url: "/settingsApi",
-                method: "POST",
-                data: "operation=write&parameter=mqtt>server=" + mqttServer
+            var mqttBody = "operation=write&parameter=mqtt>server=" + mqttServer
                 + "|mqtt>port=" + mqttPort
                 + "|mqtt>deviceName=" + mqttDeviceName
                 + "|mqtt>reconnectIntervalMs=" + mqttReconnectIntervalMs
@@ -70,22 +67,26 @@
                 + "|pressure>leakDetectSec=" + pressureLeak
                 + "|pressure>pumpWeakSec=" + pressureWeak
                 + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
-                + "|display>rotate180=" + displayRotate180
-                ,
-                success: function (response) {
-                    if (response != undefined){
+                + "|display>rotate180=" + displayRotate180;
 
-                    }
+            fetch("/settingsApi", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: mqttBody
+            }).then(function (response) {
+                // Match prior jQuery behavior: proceed on success or HTTP 200 even if body is not JSON
+                if (response.ok || response.status === 200) {
                     saveNetworkSettings();
-                }.bind(this),
-                error: function (error) {
-                    if (error.status == 200){
-                        saveNetworkSettings();
-                    } else {
-                        alert(error.statusText);
-                    }
-                }.bind(this),
-                dataType: "json"
+                    return;
+                }
+                throw new Error(response.statusText || ("HTTP " + response.status));
+            }).catch(function (error) {
+                // If fetch rejects for other reasons, still mirror jQuery's status==200 path when possible
+                if (error && error.status === 200) {
+                    saveNetworkSettings();
+                } else {
+                    alert(error.message || String(error));
+                }
             });
         }
 
@@ -104,229 +105,220 @@
             }
         }
 
-        document.addEventListener("DOMContentLoaded", initFormControls);
+        function initTabs() {
+            var buttons = document.querySelectorAll(".tab-btn");
+            var panels = document.querySelectorAll(".tab-panel");
+            var storageKey = "settingsActiveTab";
+
+            function showTab(name) {
+                buttons.forEach(function (btn) {
+                    btn.classList.toggle("active", btn.getAttribute("data-tab") === name);
+                });
+                panels.forEach(function (panel) {
+                    panel.classList.toggle("active", panel.id === "tab-" + name);
+                });
+                try {
+                    sessionStorage.setItem(storageKey, name);
+                } catch (e) { /* ignore */ }
+            }
+
+            buttons.forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    showTab(btn.getAttribute("data-tab"));
+                });
+            });
+
+            var initial = "wifi";
+            try {
+                var saved = sessionStorage.getItem(storageKey);
+                if (saved && document.getElementById("tab-" + saved)) {
+                    initial = saved;
+                }
+            } catch (e) { /* ignore */ }
+            showTab(initial);
+        }
+
+        function initPasswordToggle() {
+            var input = document.getElementById("wiFiPassword");
+            var toggle = document.getElementById("wiFiPasswordToggle");
+            if (!input || !toggle) {
+                return;
+            }
+            toggle.addEventListener("click", function () {
+                var showing = input.type === "text";
+                input.type = showing ? "password" : "text";
+                toggle.textContent = showing ? "Show" : "Hide";
+                toggle.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            initFormControls();
+            initTabs();
+            initPasswordToggle();
+        });
     </script>
 </head>
 <body>
-<div class="formBase form-flex-vertical-container">
+<div class="page">
+    <h1 class="page-title">Pump settings</h1>
 
-    <div class="formHeader">
-        WiFi settings
-    </div>
+    <nav class="tabs" role="tablist" aria-label="Settings groups">
+        <button type="button" class="tab-btn active" data-tab="wifi" role="tab">WiFi</button>
+        <button type="button" class="tab-btn" data-tab="display" role="tab">Display</button>
+        <button type="button" class="tab-btn" data-tab="mqtt" role="tab">MQTT</button>
+        <button type="button" class="tab-btn" data-tab="pressure" role="tab">Pressure</button>
+    </nav>
 
-    <div class="form-flex-vertical-container">
-        <div class="form-inputField-container">
-            <div class="formParamCaption">WiFi SSID</div>
-            <div class="formParamValue">
-                <input id="wiFiSSID" class="formStringParamValue" value="%network>ssid%">
+    <div id="tab-wifi" class="tab-panel active" role="tabpanel">
+        <div class="field">
+            <label for="wiFiSSID">WiFi SSID</label>
+            <input id="wiFiSSID" type="text" autocomplete="off" value="%network>ssid%">
+        </div>
+
+        <div class="field">
+            <label for="wiFiPassword">WiFi password</label>
+            <div class="password-row">
+                <input id="wiFiPassword" type="password" autocomplete="off" value="%network>password%">
+                <button type="button" id="wiFiPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
             </div>
         </div>
 
-        <div class="form-inputField-container">
-            <div class="formParamCaption">WiFi password</div>
-            <div class="formParamValue">
-                <input id="wiFiPassword" class="formStringParamValue" value="%network>password%">
-            </div>
-        </div>
-
-    </div>
-    </br>
-
-    <div class="formHeader">
-        Network settings
-    </div>
-
-    <div class="form-flex-vertical-container">
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Enable OTA on network (STA)</div>
-            <div class="formParamValue">
-                <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
-            </div>
-        </div>
-
-    </div>
-    </br>
-
-    <div class="formHeader">
-        Display settings
-    </div>
-
-    <div class="form-flex-vertical-container">
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Rotate screen 180&deg;</div>
-            <div class="formParamValue">
-                <input id="displayRotate180" type="checkbox" data-value="%display>rotate180%">
-            </div>
-        </div>
-
-    </div>
-    </br>
-
-    <div class="formHeader">
-        MQTT settings
-    </div>
-
-    <div class="form-flex-vertical-container">
-        <div class="form-inputField-container">
-            <div class="formParamCaption">MQTT server</div>
-            <div class="formParamValue">
-                <input id="mqttServer" class="formStringParamValue" value="%mqtt>server%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">MQTT port</div>
-            <div class="formParamValue">
-                <input id="mqttPort" class="formStringParamValue" value="%mqtt>port%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Unique device name</div>
-            <div class="formParamValue">
-                <input id="mqttDeviceName" class="formStringParamValue" value="%mqtt>deviceName%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">MQTT reconnect interval (ms)</div>
-            <div class="formParamValue">
-                <input id="mqttReconnectIntervalMs" class="formStringParamValue" value="%mqtt>reconnectIntervalMs%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">The name of the topic to report that the device is alive</div>
-            <div class="formParamValue">
-                <input id="mqttTopicTheDeviceIsAlive" class="formStringParamValue" value="%mqtt>topicTheDeviceIsAlive%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">The name of the topic to report the pump state</div>
-            <div class="formParamValue">
-                <input id="mqttTopicThePumpState" class="formStringParamValue" value="%mqtt>topicThePumpState%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">The name of the topic to report that the device is enabled</div>
-            <div class="formParamValue">
-                <input id="mqttTopicIsTheDeviceEnabled" class="formStringParamValue" value="%mqtt>topicIsTheDeviceEnabled%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">The name of the topic to report the pressure value</div>
-            <div class="formParamValue">
-                <input id="mqttTopicPressureValue" class="formStringParamValue" value="%mqtt>topicPressureValue%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">The name of the topic to listen for commands</div>
-            <div class="formParamValue">
-                <input id="mqttTopicToListenCommands" class="formStringParamValue" value="%mqtt>topicToListenCommands%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">The name of the topic to listen when the server has been born again</div>
-            <div class="formParamValue">
-                <input id="mqttTopicToListenServerWasBorn" class="formStringParamValue" value="%mqtt>topicToListenServerWasBorn%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Update pressure difference (Atm)</div>
-            <div class="formParamValue">
-                <input id="mqttPressureUpdateDiffAtm" class="formStringParamValue" type="number"
-                       min="0.01" max="0.5" step="0.01" value="%mqtt>pressureUpdateDiffAtm%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Pressure publish min interval (sec)</div>
-            <div class="formParamValue">
-                <input id="mqttPressurePubMinIntSec" class="formStringParamValue" type="number"
-                       min="5" max="120" step="1" value="%mqtt>pressurePubMinIntSec%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Pump state publish min interval (sec)</div>
-            <div class="formParamValue">
-                <input id="mqttPumpStatePubMinIntSec" class="formStringParamValue" type="number"
-                       min="5" max="120" step="1" value="%mqtt>pumpStatePubMinIntSec%">
-            </div>
-        </div>
-
-    </div>
-    </br>
-
-    <div class="formHeader">
-        Pressure settings
-    </div>
-
-    <div class="form-flex-vertical-container">
-        <div class="form-inputField-container">
-            <div class="formParamCaption">MIN pressure (Atm)</div>
-            <div class="formParamValue">
-                <input id="pressureMin" class="formStringParamValue" type="number" step="0.01"
-                       min="%pressure>minAtm#min%" max="%pressure>minAtm#max%" value="%pressure>minAtm%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">MAX pressure (Atm)</div>
-            <div class="formParamValue">
-                <input id="pressureMax" class="formStringParamValue" type="number" step="0.01"
-                       min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">Leak detection enabled</div>
-            <div class="formParamValue">
-                <input id="pressureLeakEnabled" type="checkbox" data-value="%pressure>leakDetectEnabled%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">LEAK (s)</div>
-            <div class="formParamValue">
-                <input id="pressureLeak" class="formStringParamValue" type="number" step="1"
-                       min="%pressure>leakDetectSec#min%" max="%pressure>leakDetectSec#max%"
-                       value="%pressure>leakDetectSec%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">WEAK (s)</div>
-            <div class="formParamValue">
-                <input id="pressureWeak" class="formStringParamValue" type="number" step="1"
-                       min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
-                       value="%pressure>pumpWeakSec%">
-            </div>
-        </div>
-
-        <div class="form-inputField-container">
-            <div class="formParamCaption">SENS sensor full-scale (Atm)</div>
-            <div class="formParamValue">
-                <input id="pressureSensorMax" class="formStringParamValue" type="number" step="0.1"
-                       min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
-                       value="%pressure>sensorMaxAtm%">
-            </div>
-        </div>
-
-        <div class="form-bottom">
-            <button class="toolButton" onclick="saveSystemSettings()">Save</button>
-            <button class="toolButton" onclick="window.location='/'">Reload</button>
+        <div class="field field-check">
+            <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
+            <label for="networkEnableOta">Enable OTA updates over Wi‑Fi</label>
         </div>
     </div>
 
+    <div id="tab-display" class="tab-panel" role="tabpanel">
+        <div class="field field-check">
+            <input id="displayRotate180" type="checkbox" data-value="%display>rotate180%">
+            <label for="displayRotate180">Rotate screen 180&deg;</label>
+        </div>
+    </div>
+
+    <div id="tab-mqtt" class="tab-panel" role="tabpanel">
+        <div class="field">
+            <label for="mqttServer">MQTT server</label>
+            <input id="mqttServer" type="text" autocomplete="off" value="%mqtt>server%">
+        </div>
+
+        <div class="field">
+            <label for="mqttPort">MQTT port</label>
+            <input id="mqttPort" type="number" inputmode="numeric" value="%mqtt>port%">
+        </div>
+
+        <div class="field">
+            <label for="mqttDeviceName">Unique device name</label>
+            <input id="mqttDeviceName" type="text" autocomplete="off" value="%mqtt>deviceName%">
+        </div>
+
+        <div class="field">
+            <label for="mqttReconnectIntervalMs">Reconnect interval (ms)</label>
+            <input id="mqttReconnectIntervalMs" type="number" inputmode="numeric" value="%mqtt>reconnectIntervalMs%">
+        </div>
+
+        <div class="field">
+            <label for="mqttTopicTheDeviceIsAlive">Alive topic</label>
+            <p class="field-hint">Topic used to report that the device is alive</p>
+            <input id="mqttTopicTheDeviceIsAlive" type="text" autocomplete="off" value="%mqtt>topicTheDeviceIsAlive%">
+        </div>
+
+        <div class="field">
+            <label for="mqttTopicThePumpState">Pump state topic</label>
+            <p class="field-hint">Topic used to report the pump state</p>
+            <input id="mqttTopicThePumpState" type="text" autocomplete="off" value="%mqtt>topicThePumpState%">
+        </div>
+
+        <div class="field">
+            <label for="mqttTopicIsTheDeviceEnabled">Enabled topic</label>
+            <p class="field-hint">Topic used to report that the device is enabled</p>
+            <input id="mqttTopicIsTheDeviceEnabled" type="text" autocomplete="off" value="%mqtt>topicIsTheDeviceEnabled%">
+        </div>
+
+        <div class="field">
+            <label for="mqttTopicPressureValue">Pressure topic</label>
+            <p class="field-hint">Topic used to report the pressure value</p>
+            <input id="mqttTopicPressureValue" type="text" autocomplete="off" value="%mqtt>topicPressureValue%">
+        </div>
+
+        <div class="field">
+            <label for="mqttTopicToListenCommands">Commands topic</label>
+            <p class="field-hint">Topic used to listen for commands</p>
+            <input id="mqttTopicToListenCommands" type="text" autocomplete="off" value="%mqtt>topicToListenCommands%">
+        </div>
+
+        <div class="field">
+            <label for="mqttTopicToListenServerWasBorn">Server restart topic</label>
+            <p class="field-hint">Topic used when the server has restarted</p>
+            <input id="mqttTopicToListenServerWasBorn" type="text" autocomplete="off" value="%mqtt>topicToListenServerWasBorn%">
+        </div>
+
+        <div class="field">
+            <label for="mqttPressureUpdateDiffAtm">Update pressure difference (Atm)</label>
+            <input id="mqttPressureUpdateDiffAtm" type="number"
+                   min="0.01" max="0.5" step="0.01" value="%mqtt>pressureUpdateDiffAtm%">
+        </div>
+
+        <div class="field">
+            <label for="mqttPressurePubMinIntSec">Pressure publish min interval (sec)</label>
+            <input id="mqttPressurePubMinIntSec" type="number"
+                   min="5" max="120" step="1" value="%mqtt>pressurePubMinIntSec%">
+        </div>
+
+        <div class="field">
+            <label for="mqttPumpStatePubMinIntSec">Pump state publish min interval (sec)</label>
+            <input id="mqttPumpStatePubMinIntSec" type="number"
+                   min="5" max="120" step="1" value="%mqtt>pumpStatePubMinIntSec%">
+        </div>
+    </div>
+
+    <div id="tab-pressure" class="tab-panel" role="tabpanel">
+        <div class="field">
+            <label for="pressureMin">Min pressure (Atm)</label>
+            <input id="pressureMin" type="number" step="0.01"
+                   min="%pressure>minAtm#min%" max="%pressure>minAtm#max%" value="%pressure>minAtm%">
+        </div>
+
+        <div class="field">
+            <label for="pressureMax">Max pressure (Atm)</label>
+            <input id="pressureMax" type="number" step="0.01"
+                   min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
+        </div>
+
+        <div class="field field-check">
+            <input id="pressureLeakEnabled" type="checkbox" data-value="%pressure>leakDetectEnabled%">
+            <label for="pressureLeakEnabled">Leak detection enabled</label>
+        </div>
+
+        <div class="field">
+            <label for="pressureLeak">Leak timeout (s)</label>
+            <input id="pressureLeak" type="number" step="1"
+                   min="%pressure>leakDetectSec#min%" max="%pressure>leakDetectSec#max%"
+                   value="%pressure>leakDetectSec%">
+        </div>
+
+        <div class="field">
+            <label for="pressureWeak">Weak pump timeout (s)</label>
+            <input id="pressureWeak" type="number" step="1"
+                   min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
+                   value="%pressure>pumpWeakSec%">
+        </div>
+
+        <div class="field">
+            <label for="pressureSensorMax">Sensor full-scale (Atm)</label>
+            <input id="pressureSensorMax" type="number" step="0.1"
+                   min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
+                   value="%pressure>sensorMaxAtm%">
+        </div>
+    </div>
+</div>
+
+<div class="page-footer">
+    <div class="page-footer-inner">
+        <button type="button" class="btn btn-primary" onclick="saveSystemSettings()">Save</button>
+        <button type="button" class="btn btn-secondary" onclick="window.location='/'">Reload</button>
+    </div>
 </div>
 </body>
 </html>

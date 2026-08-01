@@ -1,252 +1,235 @@
+:root {
+    --accent: #290682;
+    --accent-soft: #ede8f8;
+    --bg: #e8e8e8;
+    --surface: #ffffff;
+    --border: #c8c8c8;
+    --text: #1a1a1a;
+    --muted: #5a5a5a;
+    --radius: 8px;
+    --gap: 0.75rem;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 html, body {
     width: 100%;
-    height: 100%;
-    background-color: lightgrey;
+    min-height: 100%;
     margin: 0;
     padding: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    -webkit-text-size-adjust: 100%;
 }
 
-.formBase{
-    width: 100%;
-    height: 100%;
+.page {
+    max-width: 640px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1rem 5.5rem;
 }
 
-.formHeader {
-    font-size: 20mm;
-    color: #290682;
-    height: 30mm;
-    display: block;
-    align-items: center;
+.page-title {
+    margin: 0 0 1rem;
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--accent);
     text-align: center;
 }
 
-.formHeader2 {
-    font-size: 14mm;
-    color: #290682;
-    height: 20mm;
-    display: block;
-    align-items: left;
-    text-align: left;
-    background-color: gray;
+.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0.35rem;
 }
 
-.formParamCaption {
-    width: 100%;
-    text-align: left;
-    font-size: 8mm;
-    padding-left: 5mm;
-    background-color: white;
+.tab-btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
 }
 
-.formParamValue{
-    width: 100%;
-    padding-left: 30mm;
-    background-color: lightgrey;
-    font-size: 10mm;
+.tab-btn:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
 }
 
-.formParamValueProfileContainer{
-    width: 100%;
-    background-color: lightgrey;
-    font-size: 10mm;
+.tab-btn.active {
+    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
 }
 
-.formParamValueSlider{
-    width: 100%;
-    background-color: lightgrey;
-    font-size: 30mm;
+.tab-panel {
+    display: none;
+    flex-direction: column;
+    gap: var(--gap);
 }
 
-.formStringParamProfile{
-    width: 100%;
-    font-size: 12mm;
+.tab-panel.active {
+    display: flex;
 }
 
-
-.formParamValue input{
-    background-color: lightgrey;
-    border: 1px black;
-}
-
-.formNumberParamValue{
-    width: 90mm;
-}
-
-.formStringParamValue{
-    width: 120mm;
-    font-size: 9mm;
-
-}
-
-.formCheckboxParamValue{
-    width: 18px;
-}
-
-.form-flex-vertical-container{
+.field {
     display: flex;
     flex-direction: column;
-    width: 100%;
-    height: 100%;
+    gap: 0.35rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.85rem;
 }
 
+.field label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+}
 
-.form-bottom{
+.field-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.field input[type="text"],
+.field input[type="password"],
+.field input[type="number"] {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.field input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--accent);
+}
+
+.password-row {
     display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.password-row input {
+    flex: 1;
+}
+
+.password-toggle {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--accent);
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.password-toggle:hover {
+    background: var(--accent-soft);
+}
+
+.field-check {
     flex-direction: row;
-    width: 100%;
-    height: 15mm;
-    margin-bottom: 20mm;
-    /*background-color: #000066;*/
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 44px;
 }
 
-.form-inputField-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    padding-bottom: 5mm;
-}
-
-.form-flex-horizontal-container{
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    padding-bottom: 5mm;
-}
-
-.matrix-part{
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    padding-bottom: 5mm;
-    padding-top: 5mm;
-}
-
-.matrix-part div{
-    width: 60mm;
-    font-size: 9mm;
-}
-
-.matrix-quad{
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    padding-bottom: 5mm;
-}
-
-.matrix-row{
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    padding-bottom: 1mm;
-}
-
-.matrix-row input{
-    width: 20mm;
-    border: 1px solid black;
-    margin-right: 1mm;
-    font-size: 9mm;
-}
-
-.toolButton{
-    float: left;
-    margin-right: 10mm;
-    font-size: 12mm;
-}
-
-.miniButtonIcon {
-    position: relative;
-    height: 34mm;
-    width: 36mm;
+.field-check input[type="checkbox"] {
+    width: 1.35rem;
+    height: 1.35rem;
+    flex-shrink: 0;
+    accent-color: var(--accent);
     cursor: pointer;
 }
 
-
-.buttonIcon:hover {
-    opacity: 1;
+.field-check label {
+    flex: 1;
+    cursor: pointer;
+    font-weight: 600;
 }
 
-.buttonIcon-disabled {
-    opacity: 0.2;
-}
-
-.buttonIcon-disabled:hover {
-    opacity: 0.2;
-}
-
-.buttonIconConfig {
-    background-image: url("../img/system.png");
-    /*background-position: -86px -498px;*/
-}
-
-.buttonWiFi {
-    background-image: url("../img/wifi.png");
-    /*background-position: -86px -688px;*/
-}
-
-.buttonIconDown {
-    background-position: -250px -130px;
-    transform: matrix(1, 0, 0, -1, 0, 0);
-
-}
-
-.div-button {
-    float: left;
-    margin-right: 15px;
-}
-
-
-.toolButton2-main{
+.page-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
-    flex-direction: column;
-    width: 40mm;
-    height: 70mm;
-    border: solid darkgrey 1px;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(232, 232, 232, 0.95);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(4px);
 }
 
-.toolButton2-icon{
+.page-footer-inner {
+    display: flex;
+    gap: 0.75rem;
     width: 100%;
-    height: 40mm;
+    max-width: 640px;
 }
 
-.toolButton2-caption{
-    width: 100%;
-    height: 30mm;
-    font-size: 10mm;
-}
-
-.icon-apply{
-
-}
-
-
-
-
-.slider {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 15mm;
-    border-radius: 5mm;
-    background: #d3d3d3;
-    outline: none;
-    opacity: 0.7;
-    -webkit-transition: .2s;
-    transition: opacity .2s;
-}
-
-.slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 25mm;
-    height: 25mm;
-    border-radius: 50%;
-    background: #4CAF50;
+.btn {
+    flex: 1;
+    min-height: 44px;
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
 }
 
-.slider::-moz-range-thumb {
-    width: 25mm;
-    height: 25mm;
-    border-radius: 50%;
-    background: #4CAF50;
-    cursor: pointer;
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    filter: brightness(1.08);
+}
+
+.btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+}
+
+.btn-secondary:hover {
+    background: var(--accent-soft);
 }
