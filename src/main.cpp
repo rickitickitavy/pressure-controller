@@ -14,6 +14,7 @@ namespace {
     constexpr unsigned long kEditIdleMs = 5000;
     constexpr unsigned long kSettingsIdleMs = 10000;
     constexpr unsigned long kDisplayMs = 100;
+    constexpr unsigned long kWifiRssiAvgMs = 2000;
 
     UiMode gMode = UiMode::Run;
     PressureSettings gSettings;
@@ -35,6 +36,46 @@ namespace {
     bool gLastWifiConnected = false;
     bool gPumpControlEnabled = true;
     bool gLeakFail = false;
+
+    int8_t gWifiRssiPercent = -1;
+    long gWifiRssiSum = 0;
+    unsigned gWifiRssiSamples = 0;
+    unsigned long gWifiRssiWindowMs = 0;
+
+    int8_t rssiToPercent(int32_t rssi) {
+        if (rssi <= -100) {
+            return 0;
+        }
+        if (rssi >= -50) {
+            return 100;
+        }
+        return static_cast<int8_t>(2 * (rssi + 100));
+    }
+
+    void resetWifiRssiAvg() {
+        gWifiRssiPercent = -1;
+        gWifiRssiSum = 0;
+        gWifiRssiSamples = 0;
+        gWifiRssiWindowMs = 0;
+    }
+
+    void sampleWifiRssi(unsigned long now) {
+        gWifiRssiSum += WiFi.RSSI();
+        ++gWifiRssiSamples;
+        if (gWifiRssiWindowMs == 0) {
+            gWifiRssiWindowMs = now;
+            return;
+        }
+        if ((now - gWifiRssiWindowMs) < kWifiRssiAvgMs || gWifiRssiSamples == 0) {
+            return;
+        }
+        const int32_t avgRssi =
+                static_cast<int32_t>(gWifiRssiSum / static_cast<long>(gWifiRssiSamples));
+        gWifiRssiPercent = rssiToPercent(avgRssi);
+        gWifiRssiSum = 0;
+        gWifiRssiSamples = 0;
+        gWifiRssiWindowMs = now;
+    }
 
     void setPump(bool on) {
         if (on == gPumpOn) {
@@ -436,6 +477,13 @@ void loop() {
         ui.apMode = wiFiController->isApMode();
         ui.wifiIcon = ui.apMode || wifiConnected;
         ui.otaActive = gOtaEnabled;
+        if (ui.wifiIcon) {
+            sampleWifiRssi(now);
+            ui.wifiRssiPercent = gWifiRssiPercent;
+        } else {
+            resetWifiRssiAvg();
+            ui.wifiRssiPercent = -1;
+        }
         ui.macAddress[0] = '\0';
         if (ui.apMode) {
             WiFi.macAddress().toCharArray(ui.macAddress, sizeof(ui.macAddress));

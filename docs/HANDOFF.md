@@ -41,10 +41,11 @@ Band layout in [`src/display.cpp`](../src/display.cpp) (`kHMax` / `kYMac`+`kHMac
 2. **MAC** (AP mode only) — device MAC (`AA:BB:CC:DD:EE:FF`), white on black, centered; FreeSansBold **12pt**; strip at `kYMac=57` (5px gap under MAX), height 24px; blank when not AP  
 3. **Current** — cyan on black, **horizontally centered**; FreeSansBold 24pt  
 4. **Pump** — icon (not ON/OFF text); **green** when ON, **gray** when OFF, **red** when pump control is disabled (MQTT `disable` or LEAK timeout)  
-5. **WiFi** — blue icon to the right of the pump when STA connected or AP active; label **AP** under the icon in AP mode; label **OTA** under the icon when OTA is active (below **AP** when both)  
+5. **WiFi** — blue icon to the right of the pump when STA connected or AP active. Stack under the icon (FreeSansBold **9pt**, blue, centered): **signal %** (STA or AP), then **AP** (AP mode), then **OTA** (when OTA active). Percent is hidden when not connected.  
 6. **MIN** — white on dark green (edit: black on yellow); FreeSansBold 24pt  
 
-`UiState.macAddress` is filled from `WiFi.macAddress()` in `main.cpp` only while `apMode` is true.
+`UiState.macAddress` is filled from `WiFi.macAddress()` in `main.cpp` only while `apMode` is true.  
+`UiState.wifiRssiPercent` is the 2 s average of `WiFi.RSSI()` mapped to 0–100% (`≤ -100 → 0`, `≥ -50 → 100`, else `2*(rssi+100)`); updated at most once per **2 s** in `main.cpp`.
 
 Partial bar redraws only (no full-screen clear in normal updates).
 
@@ -93,7 +94,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 ### WiFi ([`src/WiFiController.cpp`](../src/WiFiController.cpp))
 
 - Boot: try **STA** with saved SSID/password (20 s timeout). On failure → stay in STA, **no AP fallback**; reconnect every **10 s**.
-- **AP mode**: hold encoder button **LOW at boot**. SoftAP SSID `{mqttDeviceName}-WiFi` (or `pump-WiFi`), password `00000000`, IP `192.168.0.1`, channel 6. Auto-off after **5 min**, then switches to STA. LCD shows WiFi icon + **AP** label (and **OTA** when OTA active) and the device **MAC** under MAX.
+- **AP mode**: hold encoder button **LOW at boot**. SoftAP SSID `{mqttDeviceName}-WiFi` (or `pump-WiFi`), password `00000000`, IP `192.168.0.1`, channel 6. Auto-off after **5 min**, then switches to STA. LCD shows WiFi icon + **signal %** + **AP** label (and **OTA** when OTA active) and the device **MAC** under MAX.
 - STA recovery: sleep off, TX power tweaks, manual reconnect (auto-reconnect disabled).
 - Web UI + API start whenever WiFiController inits (AP or STA).
 - `NetworkSettings.enableOtaOnNetwork` (default **false**): when true, OTA is allowed in STA; ignored in AP (OTA always on in AP).
@@ -102,7 +103,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 
 - **AP:** `ArduinoOTA` always while AP is up.
 - **STA:** OTA only when `network.enableOtaOnNetwork` is true and WiFi is connected.
-- Started/stopped from `loop()` as link / flag state changes; LCD shows **OTA** under the WiFi icon while active.
+- Started/stopped from `loop()` as link / flag state changes; LCD shows **OTA** under the WiFi icon (below **signal %** / **AP**) while active.
 
 ### MQTT ([`src/MqttClient.cpp`](../src/MqttClient.cpp))
 

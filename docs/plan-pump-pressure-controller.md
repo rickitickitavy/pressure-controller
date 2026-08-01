@@ -105,7 +105,7 @@ Arduino + PlatformIO on `esp32-c3-devkitc-02` at
 
 ## UI (main screen)
 
-Top → bottom bands: **MAX** → **MAC** (AP only, white FreeSansBold 12pt, `kYMac=57`) → **Current** (centered) → **Pump icon** (green ON / gray OFF / red when control disabled) + **WiFi icon** (**AP** / **OTA** labels when active) → **MIN**.  
+Top → bottom bands: **MAX** → **MAC** (AP only, white FreeSansBold 12pt, `kYMac=57`) → **Current** (centered) → **Pump icon** (green ON / gray OFF / red when control disabled) + **WiFi icon** (**signal %** / **AP** / **OTA** stack when active) → **MIN**.  
 Edit highlight: black on yellow. No separate FAIL screen — LEAK and MQTT `disable` both show the red pump icon on the main layout.
 
 ## Control loop notes

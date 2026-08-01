@@ -128,10 +128,11 @@ namespace {
 
     // Native 32x32 WiFi glyph (1bpp, 4 bytes/row, MSB left). Drawn 1:1 — no scaling.
     constexpr int kWifiIconSize = 32;
-    // FreeSansBold9pt baseline advance ~12–14px; room for AP + OTA under the icon.
+    // FreeSansBold9pt baseline advance ~12–14px; room for % + AP + OTA under the icon.
     constexpr int kWifiLabelH = 16;
-    constexpr int kWifiBlockW = kWifiIconSize;
-    constexpr int kWifiBlockH = kWifiIconSize + kWifiLabelH * 2;
+    // Wider than icon so "100%" / "OTA" clear without clipping (≤48px to screen edge).
+    constexpr int kWifiBlockW = 48;
+    constexpr int kWifiBlockH = kWifiIconSize + kWifiLabelH * 3;
 
     constexpr uint8_t kWifiIconBitmap[128] = {
         0x00, 0x00, 0x00, 0x00,
@@ -196,7 +197,8 @@ namespace {
         if (!state.wifiIcon) {
             return;
         }
-        drawWifiIcon(x, y, ST77XX_BLUE);
+        // Icon is 32px; center it horizontally in the wider status block.
+        drawWifiIcon(static_cast<int16_t>(x + (kWifiBlockW - kWifiIconSize) / 2), y, ST77XX_BLUE);
 
         auto drawCenteredLabel = [&](const char *label, int row) {
             tft.setFont(&FreeSansBold9pt7b);
@@ -215,6 +217,11 @@ namespace {
         };
 
         int labelRow = 0;
+        if (state.wifiRssiPercent >= 0) {
+            char pct[8];
+            snprintf(pct, sizeof(pct), "%d%%", static_cast<int>(state.wifiRssiPercent));
+            drawCenteredLabel(pct, labelRow++);
+        }
         if (state.apMode) {
             drawCenteredLabel("AP", labelRow++);
         }
@@ -364,7 +371,8 @@ namespace Display {
                 gLast.leakFail != state.leakFail;
         const bool redrawWifi =
                 first || gLast.wifiIcon != state.wifiIcon || gLast.apMode != state.apMode ||
-                gLast.otaActive != state.otaActive;
+                gLast.otaActive != state.otaActive ||
+                gLast.wifiRssiPercent != state.wifiRssiPercent;
         const bool redrawMin =
                 first || !nearlyEq(gLast.minMpa, state.minMpa, 0.0005f) || hlMin != wasHlMin;
 
