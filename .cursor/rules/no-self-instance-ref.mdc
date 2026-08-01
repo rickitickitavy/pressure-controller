@@ -1,0 +1,33 @@
+---
+description: No ad-hoc self-instance refs in class files; logical singletons OK
+globs: "**/*.{cpp,h,hpp}"
+alwaysApply: false
+---
+
+# Class instance references in class files
+
+**Allowed:** intentional logical singletons that are part of the design (global service objects). Example: `LOGGER`.
+
+**Not allowed:** declaring a pointer/reference to “the current instance” inside that class’s own `.h` / `.cpp` just so a static/C callback can reach `this` (ad-hoc `static Foo *instance = this`).
+
+```cpp
+// BAD — fake singleton only to serve a library callback
+class MqttClient {
+    static MqttClient *instance;
+};
+MqttClient *MqttClient::instance = nullptr;
+instance = this;
+```
+
+Prefer wiring from outside the class (e.g. `main.cpp`): register a free/static callback or handler that owns/holds the needed state, or pass user-data context when the library supports it.
+
+```cpp
+// GOOD — ownership and callback wiring live outside the class implementation
+mqtt = new MqttClient(settings);
+mqtt->setPumpControlHandler(onMqttPumpControl);
+```
+
+```cpp
+// GOOD — logical singleton by design
+Logger LOGGER;
+```

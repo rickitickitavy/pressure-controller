@@ -2,14 +2,15 @@
 
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
+#include <Fonts/FreeSansBold9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSansBold18pt7b.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <SPI.h>
 #include <cmath>
+#include <cstring>
 
 #include "pins.h"
-#include "settings.h"
+#include "GlobalSettings.h"
 
 namespace {
     SPIClass spiTft(FSPI);
@@ -17,18 +18,19 @@ namespace {
 
     UiState gLast{};
     bool gHasLast = false;
-    bool gFailLayout = false;
     bool gSettingsLayout = false;
 
     // Main screen contiguous bands (320px).
     constexpr int kYMax = 0;
-    constexpr int kHMax = 52; // was 64; shortened so current can move up 12
-    constexpr int kYCurrent = 52; // was 64; up 12
-    constexpr int kHCurrent = 106;
-    constexpr int kYPump = 158; // was 170; up 12
+    constexpr int kHMax = 52;
+    constexpr int kYMac = 57; // between MAX and current (AP mode MAC); 5px gap after MAX
+    constexpr int kHMac = 24;
+    constexpr int kYCurrent = 81;
+    constexpr int kHCurrent = 77;
+    constexpr int kYPump = 158;
     constexpr int kHPump = 100;
     constexpr int kYMin = 258;
-    constexpr int kHMin = 62; // was 70; -8
+    constexpr int kHMin = 62;
 
     constexpr uint16_t kDarkGreen = 0x0400;
     constexpr uint16_t kPumpOffGray = 0x8410;
@@ -40,7 +42,8 @@ namespace {
     // Settings screen: 5 equal rows.
     constexpr int kSettingsRowH = 64;
 
-    static_assert(kYMax + kHMax == kYCurrent, "gap max/current");
+    static_assert(kYMax + kHMax + 5 == kYMac, "5px gap max/mac");
+    static_assert(kYMac + kHMac == kYCurrent, "gap mac/current");
     static_assert(kYCurrent + kHCurrent == kYPump, "gap current/pump");
     static_assert(kYPump + kHPump == kYMin, "gap pump/min");
     static_assert(kYMin + kHMin == TFT_HEIGHT, "min must reach bottom");
@@ -114,8 +117,160 @@ namespace {
                 true);
     }
 
+    void drawMac(const UiState &state) {
+        if (state.apMode && state.macAddress[0] != '\0') {
+            drawBar(kYMac, kHMac, state.macAddress, ST77XX_WHITE, ST77XX_BLACK,
+                    &FreeSansBold12pt7b, true);
+        } else {
+            tft.fillRect(0, kYMac, TFT_WIDTH, kHMac, ST77XX_BLACK);
+        }
+    }
+
+    // Native 32x32 WiFi glyph (1bpp, 4 bytes/row, MSB left). Drawn 1:1 — no scaling.
+    constexpr int kWifiIconSize = 32;
+    // FreeSansBold9pt baseline advance ~12–14px; room for % + AP + OTA under the icon.
+    constexpr int kWifiLabelH = 16;
+    // Wider than icon so "100%" / "OTA" clear without clipping (≤48px to screen edge).
+    constexpr int kWifiBlockW = 48;
+    constexpr int kWifiBlockH = kWifiIconSize + kWifiLabelH * 3;
+
+    constexpr uint8_t kWifiIconBitmap[128] = {
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x07, 0xE0, 0x00,
+        0x00, 0x3F, 0xFC, 0x00,
+        0x00, 0xF8, 0x1F, 0x00,
+        0x03, 0xC0, 0x03, 0xC0,
+        0x07, 0x00, 0x00, 0xE0,
+        0x0C, 0x00, 0x00, 0x30,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x1F, 0xF8, 0x00,
+        0x00, 0x7F, 0xFE, 0x00,
+        0x00, 0xF0, 0x0F, 0x00,
+        0x01, 0xC0, 0x03, 0x80,
+        0x03, 0x00, 0x00, 0xC0,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x07, 0xE0, 0x00,
+        0x00, 0x1F, 0xF8, 0x00,
+        0x00, 0x38, 0x1C, 0x00,
+        0x00, 0x60, 0x06, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x03, 0xC0, 0x00,
+        0x00, 0x07, 0xE0, 0x00,
+        0x00, 0x0C, 0x30, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x01, 0x80, 0x00,
+        0x00, 0x03, 0xC0, 0x00,
+        0x00, 0x03, 0xC0, 0x00,
+        0x00, 0x01, 0x80, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+    };
+
+    void wifiIconOrigin(int16_t &x, int16_t &y) {
+        const int16_t pumpX = static_cast<int16_t>((TFT_WIDTH - kPumpIconW) / 2);
+        const int16_t pumpY = static_cast<int16_t>(kYPump + kPumpIconPadY);
+        x = static_cast<int16_t>(pumpX + kPumpIconW + 4) + 12;
+        // Vertically center icon+optional label block with the pump icon.
+        y = static_cast<int16_t>(pumpY + (kPumpIconH - kWifiBlockH) / 2);
+    }
+
+    void drawWifiIcon(int16_t x, int16_t y, uint16_t color) {
+        for (int row = 0; row < kWifiIconSize; ++row) {
+            const uint8_t *rowBytes = &kWifiIconBitmap[row * 4];
+            for (int col = 0; col < kWifiIconSize; ++col) {
+                const uint8_t byte = rowBytes[col >> 3];
+                if (byte & (0x80 >> (col & 7))) {
+                    tft.drawPixel(x + col, y + row, color);
+                }
+            }
+        }
+    }
+
+    void drawWifiStatus(const UiState &state) {
+        int16_t x = 0;
+        int16_t y = 0;
+        wifiIconOrigin(x, y);
+        tft.fillRect(x, y, kWifiBlockW, kWifiBlockH, ST77XX_BLACK);
+        if (!state.wifiIcon) {
+            return;
+        }
+        // Icon is 32px; center it horizontally in the wider status block.
+        drawWifiIcon(static_cast<int16_t>(x + (kWifiBlockW - kWifiIconSize) / 2), y, ST77XX_BLUE);
+
+        auto drawCenteredLabel = [&](const char *label, int row) {
+            tft.setFont(&FreeSansBold9pt7b);
+            tft.setTextSize(1);
+            tft.setTextColor(ST77XX_BLUE);
+            int16_t x1 = 0;
+            int16_t y1 = 0;
+            uint16_t tw = 0;
+            uint16_t th = 0;
+            tft.getTextBounds(label, 0, 0, &x1, &y1, &tw, &th);
+            const int16_t baseline =
+                    static_cast<int16_t>(y + kWifiIconSize + kWifiLabelH * row + th);
+            tft.setCursor(x + (kWifiBlockW - static_cast<int>(tw)) / 2 - x1, baseline);
+            tft.print(label);
+            tft.setFont(nullptr);
+        };
+
+        int labelRow = 0;
+        if (state.wifiRssiPercent >= 0) {
+            char pct[8];
+            snprintf(pct, sizeof(pct), "%d%%", static_cast<int>(state.wifiRssiPercent));
+            drawCenteredLabel(pct, labelRow++);
+        }
+        if (state.apMode) {
+            drawCenteredLabel("AP", labelRow++);
+        }
+        if (state.otaActive) {
+            drawCenteredLabel("OTA", labelRow);
+        }
+    }
+
+    void drawFailE(bool show) {
+        const int16_t pumpX = static_cast<int16_t>((TFT_WIDTH - kPumpIconW) / 2);
+        tft.fillRect(0, kYPump, pumpX, kHPump, ST77XX_BLACK);
+        if (!show) {
+            return;
+        }
+
+        tft.setFont(&FreeSansBold24pt7b);
+        tft.setTextSize(1);
+        tft.setTextColor(ST77XX_RED);
+
+        int16_t x1 = 0;
+        int16_t y1 = 0;
+        uint16_t tw = 0;
+        uint16_t th = 0;
+        tft.getTextBounds("E", 0, 0, &x1, &y1, &tw, &th);
+
+        const int16_t pumpY = static_cast<int16_t>(kYPump + kPumpIconPadY);
+        int baseline = pumpY + (kPumpIconH + static_cast<int>(th)) / 2;
+        if (baseline > kYPump + kHPump - 2) {
+            baseline = kYPump + kHPump - 2;
+        }
+        if (baseline < kYPump + static_cast<int>(th)) {
+            baseline = kYPump + static_cast<int>(th);
+        }
+
+        const int x = (pumpX - static_cast<int>(tw)) / 2 - x1;
+        tft.setCursor(x, baseline);
+        tft.print("E");
+        tft.setFont(nullptr);
+    }
+
     void drawPump(const UiState &state) {
-        drawPump(state.pumpOn ? ST77XX_GREEN : kPumpOffGray);
+        uint16_t color = kPumpOffGray;
+        if (!state.pumpControlEnabled) {
+            color = ST77XX_RED;
+        } else if (state.pumpOn) {
+            color = ST77XX_GREEN;
+        }
+        drawPump(color);
+        drawFailE(state.leakFail);
     }
 
     void drawMin(const UiState &state) {
@@ -125,14 +280,6 @@ namespace {
         const uint16_t fg = editing ? ST77XX_BLACK : ST77XX_WHITE;
         const uint16_t bg = editing ? ST77XX_YELLOW : kDarkGreen;
         drawBar(kYMin, kHMin, buf, fg, bg, &FreeSansBold24pt7b);
-    }
-
-    void drawFail(const UiState &state) {
-        char buf[24];
-        snprintf(buf, sizeof(buf), "%.2f", toAtm(state.pressureMpa));
-        drawBar(0, 100, "FAIL", ST77XX_RED, ST77XX_BLACK, &FreeSansBold24pt7b);
-        drawBar(100, 110, buf, ST77XX_WHITE, ST77XX_BLACK, &FreeSansBold24pt7b);
-        drawBar(210, 110, "Reboot", ST77XX_WHITE, ST77XX_BLACK, &FreeSansBold18pt7b);
     }
 
     void drawSettingsRow(int index, const char *text, bool selected) {
@@ -169,7 +316,7 @@ namespace {
 
 namespace Display {
     void begin() {
-        spiTft.begin(PIN_TFT_SCLK, -1 /* MISO unused */, PIN_TFT_MOSI, PIN_TFT_CS);
+        spiTft.begin(PIN_TFT_SCLK, PIN_TFT_MISO, PIN_TFT_MOSI, PIN_TFT_CS);
         tft.init(TFT_WIDTH, TFT_HEIGHT);
         // #region agent log
         constexpr uint8_t kRotation = 2;
@@ -177,34 +324,14 @@ namespace Display {
         // #endregion
         tft.fillScreen(ST77XX_BLACK);
         gHasLast = false;
-        gFailLayout = false;
         gSettingsLayout = false;
     }
 
     void render(const UiState &state) {
-        if (state.mode == UiMode::Fail) {
-            if (!gFailLayout) {
-                tft.fillScreen(ST77XX_BLACK);
-                gFailLayout = true;
-                gSettingsLayout = false;
-                gHasLast = false;
-            }
-            const bool needFailRedraw =
-                    !gHasLast || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f) ||
-                    gLast.mode != state.mode;
-            if (needFailRedraw) {
-                drawFail(state);
-                gLast = state;
-                gHasLast = true;
-            }
-            return;
-        }
-
         if (state.mode == UiMode::Settings) {
             if (!gSettingsLayout) {
                 tft.fillScreen(ST77XX_BLACK);
                 gSettingsLayout = true;
-                gFailLayout = false;
                 gHasLast = false;
             }
             const bool need =
@@ -218,10 +345,9 @@ namespace Display {
             return;
         }
 
-        // Leaving special layouts
-        if (gFailLayout || gSettingsLayout) {
+        // Leaving settings layout
+        if (gSettingsLayout) {
             tft.fillScreen(ST77XX_BLACK);
-            gFailLayout = false;
             gSettingsLayout = false;
             gHasLast = false;
         }
@@ -234,18 +360,31 @@ namespace Display {
 
         const bool redrawMax =
                 first || !nearlyEq(gLast.maxMpa, state.maxMpa, 0.0005f) || hlMax != wasHlMax;
+        const bool redrawMac =
+                first || gLast.apMode != state.apMode ||
+                strcmp(gLast.macAddress, state.macAddress) != 0;
         const bool redrawCur =
                 first || !nearlyEq(gLast.pressureMpa, state.pressureMpa, 0.001f);
-        const bool redrawPump = first || gLast.pumpOn != state.pumpOn;
+        const bool redrawPump =
+                first || gLast.pumpOn != state.pumpOn ||
+                gLast.pumpControlEnabled != state.pumpControlEnabled ||
+                gLast.leakFail != state.leakFail;
+        const bool redrawWifi =
+                first || gLast.wifiIcon != state.wifiIcon || gLast.apMode != state.apMode ||
+                gLast.otaActive != state.otaActive ||
+                gLast.wifiRssiPercent != state.wifiRssiPercent;
         const bool redrawMin =
                 first || !nearlyEq(gLast.minMpa, state.minMpa, 0.0005f) || hlMin != wasHlMin;
 
-        if (!redrawMax && !redrawCur && !redrawPump && !redrawMin) {
+        if (!redrawMax && !redrawMac && !redrawCur && !redrawPump && !redrawWifi && !redrawMin) {
             return;
         }
 
         if (redrawMax) {
             drawMax(state);
+        }
+        if (redrawMac) {
+            drawMac(state);
         }
         if (redrawCur) {
             drawCurrent(state);
@@ -253,11 +392,18 @@ namespace Display {
         if (redrawPump) {
             drawPump(state);
         }
+        if (redrawWifi) {
+            drawWifiStatus(state);
+        }
         if (redrawMin) {
             drawMin(state);
         }
 
         gLast = state;
         gHasLast = true;
+    }
+
+    void invalidateWifi() {
+        gLast.wifiIcon = false;
     }
 } // namespace Display

@@ -1,0 +1,252 @@
+html, body {
+    width: 100%;
+    height: 100%;
+    background-color: lightgrey;
+    margin: 0;
+    padding: 0;
+}
+
+.formBase{
+    width: 100%;
+    height: 100%;
+}
+
+.formHeader {
+    font-size: 20mm;
+    color: #290682;
+    height: 30mm;
+    display: block;
+    align-items: center;
+    text-align: center;
+}
+
+.formHeader2 {
+    font-size: 14mm;
+    color: #290682;
+    height: 20mm;
+    display: block;
+    align-items: left;
+    text-align: left;
+    background-color: gray;
+}
+
+.formParamCaption {
+    width: 100%;
+    text-align: left;
+    font-size: 8mm;
+    padding-left: 5mm;
+    background-color: white;
+}
+
+.formParamValue{
+    width: 100%;
+    padding-left: 30mm;
+    background-color: lightgrey;
+    font-size: 10mm;
+}
+
+.formParamValueProfileContainer{
+    width: 100%;
+    background-color: lightgrey;
+    font-size: 10mm;
+}
+
+.formParamValueSlider{
+    width: 100%;
+    background-color: lightgrey;
+    font-size: 30mm;
+}
+
+.formStringParamProfile{
+    width: 100%;
+    font-size: 12mm;
+}
+
+
+.formParamValue input{
+    background-color: lightgrey;
+    border: 1px black;
+}
+
+.formNumberParamValue{
+    width: 90mm;
+}
+
+.formStringParamValue{
+    width: 120mm;
+    font-size: 9mm;
+
+}
+
+.formCheckboxParamValue{
+    width: 18px;
+}
+
+.form-flex-vertical-container{
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+
+.form-bottom{
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: 15mm;
+    margin-bottom: 20mm;
+    /*background-color: #000066;*/
+}
+
+.form-inputField-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding-bottom: 5mm;
+}
+
+.form-flex-horizontal-container{
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    padding-bottom: 5mm;
+}
+
+.matrix-part{
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    padding-bottom: 5mm;
+    padding-top: 5mm;
+}
+
+.matrix-part div{
+    width: 60mm;
+    font-size: 9mm;
+}
+
+.matrix-quad{
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding-bottom: 5mm;
+}
+
+.matrix-row{
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    padding-bottom: 1mm;
+}
+
+.matrix-row input{
+    width: 20mm;
+    border: 1px solid black;
+    margin-right: 1mm;
+    font-size: 9mm;
+}
+
+.toolButton{
+    float: left;
+    margin-right: 10mm;
+    font-size: 12mm;
+}
+
+.miniButtonIcon {
+    position: relative;
+    height: 34mm;
+    width: 36mm;
+    cursor: pointer;
+}
+
+
+.buttonIcon:hover {
+    opacity: 1;
+}
+
+.buttonIcon-disabled {
+    opacity: 0.2;
+}
+
+.buttonIcon-disabled:hover {
+    opacity: 0.2;
+}
+
+.buttonIconConfig {
+    background-image: url("../img/system.png");
+    /*background-position: -86px -498px;*/
+}
+
+.buttonWiFi {
+    background-image: url("../img/wifi.png");
+    /*background-position: -86px -688px;*/
+}
+
+.buttonIconDown {
+    background-position: -250px -130px;
+    transform: matrix(1, 0, 0, -1, 0, 0);
+
+}
+
+.div-button {
+    float: left;
+    margin-right: 15px;
+}
+
+
+.toolButton2-main{
+    display: flex;
+    flex-direction: column;
+    width: 40mm;
+    height: 70mm;
+    border: solid darkgrey 1px;
+}
+
+.toolButton2-icon{
+    width: 100%;
+    height: 40mm;
+}
+
+.toolButton2-caption{
+    width: 100%;
+    height: 30mm;
+    font-size: 10mm;
+}
+
+.icon-apply{
+
+}
+
+
+
+
+.slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 15mm;
+    border-radius: 5mm;
+    background: #d3d3d3;
+    outline: none;
+    opacity: 0.7;
+    -webkit-transition: .2s;
+    transition: opacity .2s;
+}
+
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 25mm;
+    height: 25mm;
+    border-radius: 50%;
+    background: #4CAF50;
+    cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+    width: 25mm;
+    height: 25mm;
+    border-radius: 50%;
+    background: #4CAF50;
+    cursor: pointer;
+}

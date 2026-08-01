@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pump WiFi settings</title>
+    <link rel="stylesheet" type="text/css" href="css/all.css"/>
+    <script src="js/jq/jquery-3.4.1.js"></script>
+    <script language="JavaScript">
+        function saveSystemSettings() {
+            var wiFiSsId = document.getElementById("wiFiSSID").value;
+            var wiFiPassword = document.getElementById("wiFiPassword").value;
+            var networkEnableOta = document.getElementById("networkEnableOta").checked ? "1" : "0";
+            var mqttServer = document.getElementById("mqttServer").value;
+            var mqttPort = document.getElementById("mqttPort").value;
+            var mqttDeviceName = document.getElementById("mqttDeviceName").value;
+            var mqttReconnectIntervalMs = document.getElementById("mqttReconnectIntervalMs").value;
+            var mqttTopicTheDeviceIsAlive = document.getElementById("mqttTopicTheDeviceIsAlive").value;
+            var mqttTopicThePumpState = document.getElementById("mqttTopicThePumpState").value;
+            var mqttTopicPressureValue = document.getElementById("mqttTopicPressureValue").value;
+            var mqttTopicToListenCommands = document.getElementById("mqttTopicToListenCommands").value;
+            var mqttTopicToListenServerWasBorn = document.getElementById("mqttTopicToListenServerWasBorn").value;
+            var mqttTopicIsTheDeviceEnabled = document.getElementById("mqttTopicIsTheDeviceEnabled").value;
+            var mqttPressureUpdateDiffAtm = document.getElementById("mqttPressureUpdateDiffAtm").value;
+            var mqttPressurePubMinIntSec = document.getElementById("mqttPressurePubMinIntSec").value;
+            var mqttPumpStatePubMinIntSec = document.getElementById("mqttPumpStatePubMinIntSec").value;
+            var pressureMinAtm = document.getElementById("pressureMin").value;
+            var pressureMaxAtm = document.getElementById("pressureMax").value;
+            var pressureLeakEnabled = document.getElementById("pressureLeakEnabled").checked ? "1" : "0";
+            var pressureLeak = document.getElementById("pressureLeak").value;
+            var pressureWeak = document.getElementById("pressureWeak").value;
+            var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
+
+            var saveNetworkSettings = function(){
+                $.ajax({
+                    url: "/settingsApi",
+                    method: "POST",
+                    data: "operation=write&parameter=wifi&network>ssid=" + wiFiSsId
+                        + "&network>password=" + wiFiPassword
+                        + "&network>enableOtaOnNetwork=" + networkEnableOta,
+                    success: function (response) {
+                        window.location = "/";
+                    }.bind(this),
+                    error: function (error) {
+                        alert(error.statusText);
+                    }.bind(this),
+                    dataType: "json"
+                });
+            }.bind(this);
+
+            $.ajax({
+                url: "/settingsApi",
+                method: "POST",
+                data: "operation=write&parameter=mqtt>server=" + mqttServer
+                + "|mqtt>port=" + mqttPort
+                + "|mqtt>deviceName=" + mqttDeviceName
+                + "|mqtt>reconnectIntervalMs=" + mqttReconnectIntervalMs
+                + "|mqtt>topicTheDeviceIsAlive=" + mqttTopicTheDeviceIsAlive
+                + "|mqtt>topicThePumpState=" + mqttTopicThePumpState
+                + "|mqtt>topicPressureValue=" + mqttTopicPressureValue
+                + "|mqtt>topicToListenCommands=" + mqttTopicToListenCommands
+                + "|mqtt>topicToListenServerWasBorn=" + mqttTopicToListenServerWasBorn
+                + "|mqtt>topicIsTheDeviceEnabled=" + mqttTopicIsTheDeviceEnabled
+                + "|mqtt>pressureUpdateDiffAtm=" + mqttPressureUpdateDiffAtm
+                + "|mqtt>pressurePubMinIntSec=" + mqttPressurePubMinIntSec
+                + "|mqtt>pumpStatePubMinIntSec=" + mqttPumpStatePubMinIntSec
+                + "|pressure>minAtm=" + pressureMinAtm
+                + "|pressure>maxAtm=" + pressureMaxAtm
+                + "|pressure>leakDetectEnabled=" + pressureLeakEnabled
+                + "|pressure>leakDetectSec=" + pressureLeak
+                + "|pressure>pumpWeakSec=" + pressureWeak
+                + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
+                ,
+                success: function (response) {
+                    if (response != undefined){
+
+                    }
+                    saveNetworkSettings();
+                }.bind(this),
+                error: function (error) {
+                    if (error.status == 200){
+                        saveNetworkSettings();
+                    } else {
+                        alert(error.statusText);
+                    }
+                }.bind(this),
+                dataType: "json"
+            });
+        }
+
+        function initFormControls() {
+            var ota = document.getElementById("networkEnableOta");
+            if (ota) {
+                ota.checked = ota.getAttribute("data-value") === "1";
+            }
+            var leakEnabled = document.getElementById("pressureLeakEnabled");
+            if (leakEnabled) {
+                leakEnabled.checked = leakEnabled.getAttribute("data-value") === "1";
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", initFormControls);
+    </script>
+</head>
+<body>
+<div class="formBase form-flex-vertical-container">
+
+    <div class="formHeader">
+        WiFi settings
+    </div>
+
+    <div class="form-flex-vertical-container">
+        <div class="form-inputField-container">
+            <div class="formParamCaption">WiFi SSID</div>
+            <div class="formParamValue">
+                <input id="wiFiSSID" class="formStringParamValue" value="%network>ssid%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">WiFi password</div>
+            <div class="formParamValue">
+                <input id="wiFiPassword" class="formStringParamValue" value="%network>password%">
+            </div>
+        </div>
+
+    </div>
+    </br>
+
+    <div class="formHeader">
+        Network settings
+    </div>
+
+    <div class="form-flex-vertical-container">
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Enable OTA on network (STA)</div>
+            <div class="formParamValue">
+                <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
+            </div>
+        </div>
+
+    </div>
+    </br>
+
+    <div class="formHeader">
+        MQTT settings
+    </div>
+
+    <div class="form-flex-vertical-container">
+        <div class="form-inputField-container">
+            <div class="formParamCaption">MQTT server</div>
+            <div class="formParamValue">
+                <input id="mqttServer" class="formStringParamValue" value="%mqtt>server%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">MQTT port</div>
+            <div class="formParamValue">
+                <input id="mqttPort" class="formStringParamValue" value="%mqtt>port%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Unique device name</div>
+            <div class="formParamValue">
+                <input id="mqttDeviceName" class="formStringParamValue" value="%mqtt>deviceName%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">MQTT reconnect interval (ms)</div>
+            <div class="formParamValue">
+                <input id="mqttReconnectIntervalMs" class="formStringParamValue" value="%mqtt>reconnectIntervalMs%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to report that the device is alive</div>
+            <div class="formParamValue">
+                <input id="mqttTopicTheDeviceIsAlive" class="formStringParamValue" value="%mqtt>topicTheDeviceIsAlive%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to report the pump state</div>
+            <div class="formParamValue">
+                <input id="mqttTopicThePumpState" class="formStringParamValue" value="%mqtt>topicThePumpState%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to report that the device is enabled</div>
+            <div class="formParamValue">
+                <input id="mqttTopicIsTheDeviceEnabled" class="formStringParamValue" value="%mqtt>topicIsTheDeviceEnabled%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to report the pressure value</div>
+            <div class="formParamValue">
+                <input id="mqttTopicPressureValue" class="formStringParamValue" value="%mqtt>topicPressureValue%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to listen for commands</div>
+            <div class="formParamValue">
+                <input id="mqttTopicToListenCommands" class="formStringParamValue" value="%mqtt>topicToListenCommands%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">The name of the topic to listen when the server has been born again</div>
+            <div class="formParamValue">
+                <input id="mqttTopicToListenServerWasBorn" class="formStringParamValue" value="%mqtt>topicToListenServerWasBorn%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Update pressure difference (Atm)</div>
+            <div class="formParamValue">
+                <input id="mqttPressureUpdateDiffAtm" class="formStringParamValue" type="number"
+                       min="0.01" max="0.5" step="0.01" value="%mqtt>pressureUpdateDiffAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Pressure publish min interval (sec)</div>
+            <div class="formParamValue">
+                <input id="mqttPressurePubMinIntSec" class="formStringParamValue" type="number"
+                       min="5" max="120" step="1" value="%mqtt>pressurePubMinIntSec%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Pump state publish min interval (sec)</div>
+            <div class="formParamValue">
+                <input id="mqttPumpStatePubMinIntSec" class="formStringParamValue" type="number"
+                       min="5" max="120" step="1" value="%mqtt>pumpStatePubMinIntSec%">
+            </div>
+        </div>
+
+    </div>
+    </br>
+
+    <div class="formHeader">
+        Pressure settings
+    </div>
+
+    <div class="form-flex-vertical-container">
+        <div class="form-inputField-container">
+            <div class="formParamCaption">MIN pressure (Atm)</div>
+            <div class="formParamValue">
+                <input id="pressureMin" class="formStringParamValue" type="number" step="0.01"
+                       min="%pressure>minAtm#min%" max="%pressure>minAtm#max%" value="%pressure>minAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">MAX pressure (Atm)</div>
+            <div class="formParamValue">
+                <input id="pressureMax" class="formStringParamValue" type="number" step="0.01"
+                       min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">Leak detection enabled</div>
+            <div class="formParamValue">
+                <input id="pressureLeakEnabled" type="checkbox" data-value="%pressure>leakDetectEnabled%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">LEAK (s)</div>
+            <div class="formParamValue">
+                <input id="pressureLeak" class="formStringParamValue" type="number" step="1"
+                       min="%pressure>leakDetectSec#min%" max="%pressure>leakDetectSec#max%"
+                       value="%pressure>leakDetectSec%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">WEAK (s)</div>
+            <div class="formParamValue">
+                <input id="pressureWeak" class="formStringParamValue" type="number" step="1"
+                       min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
+                       value="%pressure>pumpWeakSec%">
+            </div>
+        </div>
+
+        <div class="form-inputField-container">
+            <div class="formParamCaption">SENS sensor full-scale (Atm)</div>
+            <div class="formParamValue">
+                <input id="pressureSensorMax" class="formStringParamValue" type="number" step="0.1"
+                       min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
+                       value="%pressure>sensorMaxAtm%">
+            </div>
+        </div>
+
+        <div class="form-bottom">
+            <button class="toolButton" onclick="saveSystemSettings()">Save</button>
+            <button class="toolButton" onclick="window.location='/'">Reload</button>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

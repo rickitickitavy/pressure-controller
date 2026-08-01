@@ -1,15 +1,20 @@
 #include <Arduino.h>
+#include <ArduinoOTA.h>
 
 #include "display.h"
 #include "encoder.h"
 #include "pins.h"
 #include "pressure.h"
-#include "settings.h"
+#include <LittleFS.h>
+#include "SettingsManager.h"
+#include "WiFiController.h"
+#include "MqttClient.h"
 
 namespace {
     constexpr unsigned long kEditIdleMs = 5000;
     constexpr unsigned long kSettingsIdleMs = 10000;
     constexpr unsigned long kDisplayMs = 100;
+    constexpr unsigned long kWifiRssiAvgMs = 2000;
 
     UiMode gMode = UiMode::Run;
     PressureSettings gSettings;
@@ -24,6 +29,54 @@ namespace {
     bool gAwaitingMin = false;
     unsigned long gLastDisplayMs = 0;
 
+    SettingsManager *settingsManager;
+    WiFiController *wiFiController;
+    MqttClient *mqtt;
+    bool gOtaEnabled = false;
+    bool gLastWifiConnected = false;
+    bool gPumpControlEnabled = true;
+    bool gLeakFail = false;
+
+    int8_t gWifiRssiPercent = -1;
+    long gWifiRssiSum = 0;
+    unsigned gWifiRssiSamples = 0;
+    unsigned long gWifiRssiWindowMs = 0;
+
+    int8_t rssiToPercent(int32_t rssi) {
+        if (rssi <= -100) {
+            return 0;
+        }
+        if (rssi >= -50) {
+            return 100;
+        }
+        return static_cast<int8_t>(2 * (rssi + 100));
+    }
+
+    void resetWifiRssiAvg() {
+        gWifiRssiPercent = -1;
+        gWifiRssiSum = 0;
+        gWifiRssiSamples = 0;
+        gWifiRssiWindowMs = 0;
+    }
+
+    void sampleWifiRssi(unsigned long now) {
+        gWifiRssiSum += WiFi.RSSI();
+        ++gWifiRssiSamples;
+        if (gWifiRssiWindowMs == 0) {
+            gWifiRssiWindowMs = now;
+            return;
+        }
+        if ((now - gWifiRssiWindowMs) < kWifiRssiAvgMs || gWifiRssiSamples == 0) {
+            return;
+        }
+        const int32_t avgRssi =
+                static_cast<int32_t>(gWifiRssiSum / static_cast<long>(gWifiRssiSamples));
+        gWifiRssiPercent = rssiToPercent(avgRssi);
+        gWifiRssiSum = 0;
+        gWifiRssiSamples = 0;
+        gWifiRssiWindowMs = now;
+    }
+
     void setPump(bool on) {
         if (on == gPumpOn) {
             return;
@@ -37,17 +90,26 @@ namespace {
         } else {
             gAwaitingMin = false;
         }
+        if (mqtt != nullptr) {
+            mqtt->notifyPumpState(on);
+        }
     }
 
-    void enterFail() {
-        setPump(false);
-        gMode = UiMode::Fail;
-        gThresholdsDirty = false;
+    void setPumpControlEnabled(bool enabled) {
+        gPumpControlEnabled = enabled;
+        if (!enabled) {
+            setPump(false);
+        } else {
+            gLeakFail = false;
+        }
+        if (mqtt != nullptr) {
+            mqtt->notifyDeviceEnabled(enabled);
+        }
     }
 
     void leaveEditToRun() {
         if (gThresholdsDirty) {
-            Settings::save(gSettings);
+            settingsManager->savePressure(gSettings);
             gThresholdsDirty = false;
         }
         gMode = UiMode::Run;
@@ -55,7 +117,7 @@ namespace {
 
     void enterSettings() {
         if (gThresholdsDirty) {
-            Settings::save(gSettings);
+            settingsManager->savePressure(gSettings);
             gThresholdsDirty = false;
         }
         gDraft = gSettings;
@@ -77,9 +139,10 @@ namespace {
         gSettings.leakDetectSec = gDraft.leakDetectSec;
         gSettings.pumpWeakSec = gDraft.pumpWeakSec;
         gSettings.sensorMaxMpa = gDraft.sensorMaxMpa;
-        Settings::clampAdvanced(gSettings);
-        Settings::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
-        Settings::save(gSettings);
+        SettingsManager::clampAdvanced(gSettings);
+        SettingsManager::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
+        settingsManager->savePressure(gSettings);
+        gSettings = settingsManager->getSettings()->pressure;
         Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
         gDraft = gSettings;
         gMode = UiMode::Run;
@@ -105,7 +168,7 @@ namespace {
         } else {
             return;
         }
-        Settings::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
+        SettingsManager::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
         gThresholdsDirty = true;
     }
 
@@ -117,30 +180,30 @@ namespace {
 
         switch (gFocus) {
             case SettingsFocus::Leak: {
-                int v = static_cast<int>(gDraft.leakDetectSec) + steps;
+                int v = gDraft.leakDetectSec + steps;
                 if (v < LEAK_SEC_MIN) {
                     v = LEAK_SEC_MIN;
                 }
                 if (v > LEAK_SEC_MAX) {
                     v = LEAK_SEC_MAX;
                 }
-                gDraft.leakDetectSec = static_cast<uint16_t>(v);
+                gDraft.leakDetectSec = v;
                 break;
             }
             case SettingsFocus::Weak: {
-                int v = static_cast<int>(gDraft.pumpWeakSec) + steps;
+                int v = gDraft.pumpWeakSec + steps;
                 if (v < WEAK_SEC_MIN) {
                     v = WEAK_SEC_MIN;
                 }
                 if (v > WEAK_SEC_MAX) {
                     v = WEAK_SEC_MAX;
                 }
-                gDraft.pumpWeakSec = static_cast<uint16_t>(v);
+                gDraft.pumpWeakSec = v;
                 break;
             }
             case SettingsFocus::SensorMax:
                 gDraft.sensorMaxMpa += static_cast<float>(steps) * SENSOR_MAX_STEP_MPA;
-                Settings::clampAdvanced(gDraft);
+                SettingsManager::clampAdvanced(gDraft);
                 break;
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
@@ -201,18 +264,17 @@ namespace {
             case UiMode::EditMin:
                 leaveEditToRun();
                 break;
-            case UiMode::Fail:
             case UiMode::Settings:
                 break;
         }
     }
 
     void updateControl(float pressure) {
-        if (gMode == UiMode::Fail || gMode == UiMode::Settings) {
+        if (gMode == UiMode::Settings) {
             return;
         }
 
-        if (!gPumpOn && pressure < gSettings.minMpa) {
+        if (!gPumpOn && gPumpControlEnabled && pressure < gSettings.minMpa) {
             setPump(true);
         } else if (gPumpOn && pressure >= gSettings.maxMpa) {
             setPump(false);
@@ -230,8 +292,10 @@ namespace {
         if (gAwaitingMin) {
             if (pressure >= gSettings.minMpa) {
                 gAwaitingMin = false;
-            } else if ((millis() - gAwaitingMinSinceMs) >= leakMs) {
-                enterFail();
+            } else if (gSettings.leakDetectEnabled &&
+                       (millis() - gAwaitingMinSinceMs) >= leakMs) {
+                gLeakFail = true;
+                setPumpControlEnabled(false);
                 return;
             }
         }
@@ -258,22 +322,88 @@ namespace {
             }
         }
     }
+    void onMqttPumpControl(bool enabled) {
+        setPumpControlEnabled(enabled);
+    }
+
+    void onMqttMessage(char *topic, byte *payload, unsigned int length) {
+        if (mqtt != nullptr) {
+            mqtt->onMessage(topic, payload, length);
+        }
+    }
+
+    void startMqttIfNeeded() {
+        if (mqtt != nullptr) {
+            return;
+        }
+        mqtt = new MqttClient(settingsManager->getSettings());
+        mqtt->setMessageCallback(onMqttMessage);
+        mqtt->setPumpControlHandler(onMqttPumpControl);
+        mqtt->notifyDeviceEnabled(gPumpControlEnabled);
+        LOGGER.info("MQTT client started");
+    }
 } // namespace
 
 void setup() {
+#ifdef CON_DEBUG
+    delay(500);
+
     Serial.begin(115200);
+    Serial.println("--- Starting ");
+
+    LOGGER.info("Started UART at 115200");
+#endif
+    LOGGER.info("Starting...");
 
     pinMode(PIN_PUMP, OUTPUT);
     digitalWrite(PIN_PUMP, LOW);
 
-    Settings::begin();
-    gSettings = Settings::load();
+    if (!LittleFS.begin(false)) {
+        LOGGER.error("LittleFS mount failed");
+    } else {
+        LOGGER.info("LittleFS mounted");
+    }
+
+    settingsManager = new SettingsManager();
+    LOGGER.info("Setting manager started");
+
+    gSettings = settingsManager->getSettings()->pressure;
     gDraft = gSettings;
     Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
 
     Pressure::begin(PIN_PRESSURE);
     Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
     Display::begin();
+
+    delay(50);
+    const bool forceAp = digitalRead(PIN_ENCODER_BTN) == LOW;
+    if (forceAp) {
+        LOGGER.info("Encoder button held at boot — WiFi AP mode requested");
+    }
+
+    wiFiController = new WiFiController(settingsManager, forceAp);
+    LOGGER.info("WiFi controller started");
+
+    const bool otaWantedAtBoot =
+            wiFiController->isApMode() ||
+            (WiFi.isConnected() && settingsManager->getSettings()->network.enableOtaOnNetwork);
+    if (otaWantedAtBoot) {
+        ArduinoOTA.begin();
+        gOtaEnabled = true;
+        LOGGER.info("OTA started");
+    } else {
+        LOGGER.info("OTA skipped (WiFi not connected / not AP / STA OTA disabled)");
+    }
+
+    if (wiFiController->isApMode()) {
+        mqtt = nullptr;
+        LOGGER.info("MQTT client skipped (WiFi AP mode)");
+    } else if (!WiFi.isConnected()) {
+        mqtt = nullptr;
+        LOGGER.info("MQTT client skipped (WiFi STA not connected)");
+    } else {
+        startMqttIfNeeded();
+    }
 
     gLastActivityMs = millis();
     Serial.println("Pump controller ready");
@@ -282,12 +412,30 @@ void setup() {
 void loop() {
     Encoder::update();
 
-    if (gMode == UiMode::Fail) {
-        (void) Encoder::consumePress();
-        (void) Encoder::consumeHoldPress();
-        (void) Encoder::consumeLongPress();
-        (void) Encoder::consumeSteps();
-    } else if (gMode == UiMode::Settings) {
+    wiFiController->update();
+    const bool isAp = wiFiController->isApMode();
+
+    // OTA always in AP; in STA only when enableOtaOnNetwork is set.
+    const bool otaWanted =
+            isAp || (WiFi.isConnected() && settingsManager->getSettings()->network.enableOtaOnNetwork);
+    if (otaWanted && !gOtaEnabled) {
+        ArduinoOTA.begin();
+        gOtaEnabled = true;
+        LOGGER.info("OTA started");
+    } else if (!otaWanted && gOtaEnabled) {
+        gOtaEnabled = false;
+        LOGGER.info("OTA stopped");
+    }
+    if (gOtaEnabled) {
+        ArduinoOTA.handle();
+    }
+
+    // Start MQTT once STA has a link (boot miss, AP timeout, or later reconnect).
+    if (!isAp && WiFi.isConnected()) {
+        startMqttIfNeeded();
+    }
+
+    if (gMode == UiMode::Settings) {
         (void) Encoder::consumeLongPress();
         handleSettingsButton();
         applySettingsEncoder(Encoder::consumeSteps());
@@ -306,17 +454,46 @@ void loop() {
     const float pressure = Pressure::readMpa();
     updateControl(pressure);
 
+    if (mqtt != nullptr) {
+        mqtt->dispatch(gPumpOn, pressure);
+    }
+
     const unsigned long now = millis();
     if ((now - gLastDisplayMs) >= kDisplayMs) {
         gLastDisplayMs = now;
+
+        const bool wifiConnected = WiFi.isConnected();
+        const bool wifiReconnected = wifiConnected && !gLastWifiConnected;
+        gLastWifiConnected = wifiConnected;
+
         UiState ui;
         ui.mode = gMode;
         ui.pressureMpa = pressure;
         ui.minMpa = gSettings.minMpa;
         ui.maxMpa = gSettings.maxMpa;
         ui.pumpOn = gPumpOn;
+        ui.pumpControlEnabled = gPumpControlEnabled;
+        ui.leakFail = gLeakFail;
+        ui.apMode = wiFiController->isApMode();
+        ui.wifiIcon = ui.apMode || wifiConnected;
+        ui.otaActive = gOtaEnabled;
+        if (ui.wifiIcon) {
+            sampleWifiRssi(now);
+            ui.wifiRssiPercent = gWifiRssiPercent;
+        } else {
+            resetWifiRssiAvg();
+            ui.wifiRssiPercent = -1;
+        }
+        ui.macAddress[0] = '\0';
+        if (ui.apMode) {
+            WiFi.macAddress().toCharArray(ui.macAddress, sizeof(ui.macAddress));
+        }
         ui.draft = gDraft;
         ui.focus = gFocus;
+
+        if (wifiReconnected) {
+            Display::invalidateWifi();
+        }
         Display::render(ui);
     }
 }
