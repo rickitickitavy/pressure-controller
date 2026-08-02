@@ -1,0 +1,8 @@
+---
+description: Apply esp32 project skill for all firmware work in this repo
+alwaysApply: true
+---
+
+# ESP32 skill
+
+Before editing firmware in this project, read and follow `.cursor/skills/esp32/SKILL.md` (and `patterns.md` when touching SPI, EEPROM, OTA, or callbacks).
