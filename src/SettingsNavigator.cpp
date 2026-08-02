@@ -5,6 +5,7 @@
 #include <IPAddress.h>
 #include "SettingsNavigator.h"
 #include "Logger.h"
+#include "pressure.h"
 
 SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
     this->settingsManager = settingsManager;
@@ -97,7 +98,7 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            (void *) &settings->displayRotate180,
                                                                            (void *) &settings->displayRotate180);
 
-    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.0f,
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>minAtm", FLOAT, 0.2f,
                                                                            SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,
                                                                            (void *) &settings->pressure.minMpa,
                                                                            (void *) &settings->pressure.minMpa);
@@ -125,6 +126,14 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            SENSOR_MAX_MAX_MPA / PRESSURE_ATM_MPA,
                                                                            (void *) &settings->pressure.sensorMaxMpa,
                                                                            (void *) &settings->pressure.sensorMaxMpa);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>sensorMinVolts", FLOAT,
+                                                                           SENSOR_VOLT_MIN, SENSOR_VOLT_MAX,
+                                                                           (void *) &settings->pressure.sensorMinVolts,
+                                                                           (void *) &settings->pressure.sensorMinVolts);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>sensorMaxVolts", FLOAT,
+                                                                           SENSOR_VOLT_MIN, SENSOR_VOLT_MAX,
+                                                                           (void *) &settings->pressure.sensorMaxVolts,
+                                                                           (void *) &settings->pressure.sensorMaxVolts);
 
 }
 
@@ -287,6 +296,9 @@ String SettingsNavigator::saveSettingsByNames(String *params, int paramsCount) {
                                settings->pressure.sensorMaxMpa);
 
     settingsManager->saveSetting(false);
+
+    Pressure::setSensorMaxMpa(settings->pressure.sensorMaxMpa);
+    Pressure::setSensorVolts(settings->pressure.sensorMinVolts, settings->pressure.sensorMaxVolts);
 
     settingsManager->logSettings();
 

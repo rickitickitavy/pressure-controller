@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define GLOBAL_CURRENT_SETTINGS_VERSION 2
+#define GLOBAL_CURRENT_SETTINGS_VERSION 3
 #define GLOBAL_SETTINGS_MARKER_0 0x31
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
@@ -19,6 +19,12 @@ constexpr float PRESSURE_MIN_GAP_MPA = 0.002f;
 constexpr float SENSOR_MAX_STEP_MPA = 0.010f; // 0.1 atm
 constexpr float SENSOR_MAX_MIN_MPA = 0.200f; // 2.0 atm
 constexpr float SENSOR_MAX_MAX_MPA = 5.000f; // 50.0 atm
+
+constexpr float SENSOR_VOLT_MIN = 0.0f;
+constexpr float SENSOR_VOLT_MAX = 5.0f;
+constexpr float SENSOR_VOLT_STEP = 0.01f;
+constexpr float SENSOR_VOLT_MIN_DEFAULT = 0.0f;
+constexpr float SENSOR_VOLT_MAX_DEFAULT = 4.5f;
 
 constexpr int LEAK_SEC_MIN = 5;
 constexpr int LEAK_SEC_MAX = 40;
@@ -59,6 +65,8 @@ struct PressureSettings {
     int pumpWeakSec = 180; // max continuous pump ON
     float sensorMaxMpa = 0.500f; // ADC full-scale pressure
     bool leakDetectEnabled = true; // when false, LEAK timeout is ignored
+    float sensorMinVolts = SENSOR_VOLT_MIN_DEFAULT; // ADC voltage at 0 MPa
+    float sensorMaxVolts = SENSOR_VOLT_MAX_DEFAULT; // ADC voltage at sensorMaxMpa
 };
 
 struct GlobalSettings {

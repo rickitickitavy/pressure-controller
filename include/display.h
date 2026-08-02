@@ -15,6 +15,8 @@ enum class SettingsFocus : uint8_t {
     Leak = 0,
     Weak,
     SensorMax,
+    SensorMinVolts,
+    SensorMaxVolts,
     Save,
     Cancel,
     Count,

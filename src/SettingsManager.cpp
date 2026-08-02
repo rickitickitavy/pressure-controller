@@ -31,6 +31,9 @@ SettingsManager::SettingsManager(){
 
             // v1 -> v2: PressureSettings gained leakDetectEnabled (shifts trailing fields).
             settings.pressure.leakDetectEnabled = true;
+            // v2 -> v3: PressureSettings gained sensorMinVolts / sensorMaxVolts.
+            settings.pressure.sensorMinVolts = SENSOR_VOLT_MIN_DEFAULT;
+            settings.pressure.sensorMaxVolts = SENSOR_VOLT_MAX_DEFAULT;
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
@@ -146,6 +149,36 @@ void SettingsManager::clampAdvanced(PressureSettings &s) {
     if (s.sensorMaxMpa > SENSOR_MAX_MAX_MPA) {
         s.sensorMaxMpa = SENSOR_MAX_MAX_MPA;
     }
+
+    auto clampVolt = [](float v) {
+        if (v < SENSOR_VOLT_MIN) {
+            v = SENSOR_VOLT_MIN;
+        }
+        if (v > SENSOR_VOLT_MAX) {
+            v = SENSOR_VOLT_MAX;
+        }
+        const float snapped = roundf(v / SENSOR_VOLT_STEP) * SENSOR_VOLT_STEP;
+        if (snapped < SENSOR_VOLT_MIN) {
+            return SENSOR_VOLT_MIN;
+        }
+        if (snapped > SENSOR_VOLT_MAX) {
+            return SENSOR_VOLT_MAX;
+        }
+        return snapped;
+    };
+    s.sensorMinVolts = clampVolt(s.sensorMinVolts);
+    s.sensorMaxVolts = clampVolt(s.sensorMaxVolts);
+    if (s.sensorMinVolts >= s.sensorMaxVolts) {
+        if (s.sensorMaxVolts - SENSOR_VOLT_STEP >= SENSOR_VOLT_MIN) {
+            s.sensorMinVolts = s.sensorMaxVolts - SENSOR_VOLT_STEP;
+        } else {
+            s.sensorMaxVolts = s.sensorMinVolts + SENSOR_VOLT_STEP;
+            if (s.sensorMaxVolts > SENSOR_VOLT_MAX) {
+                s.sensorMaxVolts = SENSOR_VOLT_MAX;
+                s.sensorMinVolts = SENSOR_VOLT_MAX - SENSOR_VOLT_STEP;
+            }
+        }
+    }
 }
 //--------------------------------------------------------------------
 
@@ -214,11 +247,26 @@ void SettingsManager::saveSetting(GlobalSettings* settingsToSave, bool restart) 
     EEPROM.commit();
     LOGGER.info("saved");
 
-    delay(20);
+    // Never ESP.restart() here — AsyncWebServer handlers must return first.
+    // Main loop (or setup) calls handlePendingRestart().
     if (restart) {
-        LOGGER.warning("RESTARTING...");
-        ESP.restart();
+        pendingRestart = true;
+        restartRequestedMs = millis();
+        LOGGER.warning("Restart scheduled");
     }
+}
+//--------------------------------------------------------------------
+
+bool SettingsManager::handlePendingRestart(unsigned long delayMs) {
+    if (!pendingRestart) {
+        return false;
+    }
+    if ((millis() - restartRequestedMs) < delayMs) {
+        return false;
+    }
+    LOGGER.warning("RESTARTING...");
+    ESP.restart();
+    return true;
 }
 //--------------------------------------------------------------------
 
@@ -275,5 +323,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      leakDetectEnabled: " + String(settings.pressure.leakDetectEnabled ? "true" : "false"));
     LOGGER.info("      pumpWeakSec: " + String(settings.pressure.pumpWeakSec));
     LOGGER.info("      sensorMaxMpa: " + String(settings.pressure.sensorMaxMpa));
+    LOGGER.info("      sensorMinVolts: " + String(settings.pressure.sensorMinVolts));
+    LOGGER.info("      sensorMaxVolts: " + String(settings.pressure.sensorMaxVolts));
 }
 //--------------------------------------------------------------------

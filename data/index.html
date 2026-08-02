@@ -6,7 +6,57 @@
     <title>Pump WiFi settings</title>
     <link rel="stylesheet" type="text/css" href="css/all.css"/>
     <script>
+        function showSaveError(message) {
+            clearSaveSuccess();
+            var el = document.getElementById("saveError");
+            var text = (message && String(message).trim()) ? String(message).trim() : "Save failed";
+            if (el) {
+                el.textContent = text;
+                el.hidden = false;
+                el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+            alert(text);
+        }
+
+        function clearSaveError() {
+            var el = document.getElementById("saveError");
+            if (el) {
+                el.textContent = "";
+                el.hidden = true;
+            }
+        }
+
+        function showSaveSuccess(message) {
+            clearSaveError();
+            var el = document.getElementById("saveSuccess");
+            var text = (message && String(message).trim())
+                ? String(message).trim()
+                : "Settings saved successfully";
+            if (el) {
+                el.textContent = text;
+                el.hidden = false;
+                el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+
+        function clearSaveSuccess() {
+            var el = document.getElementById("saveSuccess");
+            if (el) {
+                el.textContent = "";
+                el.hidden = true;
+            }
+        }
+
+        function isSaveOk(response, text) {
+            if (!(response.ok || response.status === 200)) {
+                return false;
+            }
+            return String(text || "").trim() === "OK";
+        }
+
         function saveSystemSettings() {
+            clearSaveError();
+            clearSaveSuccess();
             var wiFiSsId = document.getElementById("wiFiSSID").value;
             var wiFiPassword = document.getElementById("wiFiPassword").value;
             var networkEnableOta = document.getElementById("networkEnableOta").checked ? "1" : "0";
@@ -29,22 +79,32 @@
             var pressureLeak = document.getElementById("pressureLeak").value;
             var pressureWeak = document.getElementById("pressureWeak").value;
             var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
+            var pressureSensorMinVolts = document.getElementById("pressureSensorMinVolts").value;
+            var pressureSensorMaxVolts = document.getElementById("pressureSensorMaxVolts").value;
             var displayRotate180 = document.getElementById("displayRotate180").checked ? "1" : "0";
 
             var saveNetworkSettings = function () {
                 fetch("/settingsApi", {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: "operation=write&parameter=wifi&network>ssid=" + wiFiSsId
-                        + "&network>password=" + wiFiPassword
+                    body: "operation=write&parameter=wifi&network>ssid=" + encodeURIComponent(wiFiSsId)
+                        + "&network>password=" + encodeURIComponent(wiFiPassword)
                         + "&network>enableOtaOnNetwork=" + networkEnableOta
                 }).then(function (response) {
-                    if (!response.ok) {
-                        throw new Error(response.statusText || ("HTTP " + response.status));
-                    }
-                    window.location = "/";
+                    return response.text().then(function (text) {
+                        if (!isSaveOk(response, text)) {
+                            throw new Error(text || response.statusText || ("HTTP " + response.status));
+                        }
+                        showSaveSuccess("Settings saved successfully");
+                    });
                 }).catch(function (error) {
-                    alert(error.message || String(error));
+                    // Device may restart after WiFi save; treat a dropped connection as success.
+                    var msg = (error && error.message) ? String(error.message) : String(error);
+                    if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+                        showSaveSuccess("Settings saved successfully");
+                        return;
+                    }
+                    showSaveError(msg);
                 });
             };
 
@@ -67,6 +127,8 @@
                 + "|pressure>leakDetectSec=" + pressureLeak
                 + "|pressure>pumpWeakSec=" + pressureWeak
                 + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
+                + "|pressure>sensorMinVolts=" + pressureSensorMinVolts
+                + "|pressure>sensorMaxVolts=" + pressureSensorMaxVolts
                 + "|display>rotate180=" + displayRotate180;
 
             fetch("/settingsApi", {
@@ -74,19 +136,14 @@
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: mqttBody
             }).then(function (response) {
-                // Match prior jQuery behavior: proceed on success or HTTP 200 even if body is not JSON
-                if (response.ok || response.status === 200) {
+                return response.text().then(function (text) {
+                    if (!isSaveOk(response, text)) {
+                        throw new Error(text || response.statusText || ("HTTP " + response.status));
+                    }
                     saveNetworkSettings();
-                    return;
-                }
-                throw new Error(response.statusText || ("HTTP " + response.status));
+                });
             }).catch(function (error) {
-                // If fetch rejects for other reasons, still mirror jQuery's status==200 path when possible
-                if (error && error.status === 200) {
-                    saveNetworkSettings();
-                } else {
-                    alert(error.message || String(error));
-                }
+                showSaveError((error && error.message) ? error.message : String(error));
             });
         }
 
@@ -162,12 +219,15 @@
 <body>
 <div class="page">
     <h1 class="page-title">Pump settings</h1>
+    <div id="saveError" class="save-error" role="alert" hidden></div>
+    <div id="saveSuccess" class="save-success" role="status" hidden></div>
 
     <nav class="tabs" role="tablist" aria-label="Settings groups">
         <button type="button" class="tab-btn active" data-tab="wifi" role="tab">WiFi</button>
         <button type="button" class="tab-btn" data-tab="display" role="tab">Display</button>
         <button type="button" class="tab-btn" data-tab="mqtt" role="tab">MQTT</button>
         <button type="button" class="tab-btn" data-tab="pressure" role="tab">Pressure</button>
+        <button type="button" class="tab-btn" data-tab="sensor" role="tab">Sensor settings</button>
     </nav>
 
     <div id="tab-wifi" class="tab-panel active" role="tabpanel">
@@ -304,12 +364,28 @@
                    min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
                    value="%pressure>pumpWeakSec%">
         </div>
+    </div>
 
+    <div id="tab-sensor" class="tab-panel" role="tabpanel">
         <div class="field">
             <label for="pressureSensorMax">Sensor full-scale (Atm)</label>
             <input id="pressureSensorMax" type="number" step="0.1"
                    min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
                    value="%pressure>sensorMaxAtm%">
+        </div>
+
+        <div class="field">
+            <label for="pressureSensorMinVolts">Sensor min (V)</label>
+            <input id="pressureSensorMinVolts" type="number" step="0.01"
+                   min="%pressure>sensorMinVolts#min%" max="%pressure>sensorMinVolts#max%"
+                   value="%pressure>sensorMinVolts%">
+        </div>
+
+        <div class="field">
+            <label for="pressureSensorMaxVolts">Sensor max (V)</label>
+            <input id="pressureSensorMaxVolts" type="number" step="0.01"
+                   min="%pressure>sensorMaxVolts#min%" max="%pressure>sensorMaxVolts#max%"
+                   value="%pressure>sensorMaxVolts%">
         </div>
     </div>
 </div>

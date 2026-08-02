@@ -15,6 +15,7 @@ namespace {
     constexpr unsigned long kSettingsIdleMs = 10000;
     constexpr unsigned long kDisplayMs = 100;
     constexpr unsigned long kWifiRssiAvgMs = 2000;
+    constexpr unsigned long kPumpMinToggleMs = 1000;
 
     UiMode gMode = UiMode::Run;
     PressureSettings gSettings;
@@ -25,6 +26,7 @@ namespace {
 
     unsigned long gLastActivityMs = 0;
     unsigned long gPumpOnSinceMs = 0;
+    unsigned long gLastPumpToggleMs = 0;
     unsigned long gAwaitingMinSinceMs = 0;
     bool gAwaitingMin = false;
     unsigned long gLastDisplayMs = 0;
@@ -81,12 +83,17 @@ namespace {
         if (on == gPumpOn) {
             return;
         }
+        const unsigned long now = millis();
+        if (gLastPumpToggleMs != 0 && (now - gLastPumpToggleMs) < kPumpMinToggleMs) {
+            return;
+        }
         gPumpOn = on;
         digitalWrite(PIN_PUMP, on ? HIGH : LOW);
+        gLastPumpToggleMs = now;
         if (on) {
-            gPumpOnSinceMs = millis();
+            gPumpOnSinceMs = now;
             gAwaitingMin = true;
-            gAwaitingMinSinceMs = millis();
+            gAwaitingMinSinceMs = now;
         } else {
             gAwaitingMin = false;
         }
@@ -124,26 +131,20 @@ namespace {
         gFocus = SettingsFocus::Leak;
         gMode = UiMode::Settings;
         gLastActivityMs = millis();
-        // #region agent log
-        Serial.printf(
-            "{\"sessionId\":\"2ce4f1\",\"hypothesisId\":\"S\",\"location\":\"main.cpp:enterSettings\","
-            "\"message\":\"enter_settings\",\"data\":{\"leak\":%u,\"weak\":%u},"
-            "\"timestamp\":%lu,\"runId\":\"settings-ui\"}\n",
-            static_cast<unsigned>(gDraft.leakDetectSec),
-            static_cast<unsigned>(gDraft.pumpWeakSec),
-            static_cast<unsigned long>(millis()));
-        // #endregion
     }
 
     void applySettingsSave() {
         gSettings.leakDetectSec = gDraft.leakDetectSec;
         gSettings.pumpWeakSec = gDraft.pumpWeakSec;
         gSettings.sensorMaxMpa = gDraft.sensorMaxMpa;
+        gSettings.sensorMinVolts = gDraft.sensorMinVolts;
+        gSettings.sensorMaxVolts = gDraft.sensorMaxVolts;
         SettingsManager::clampAdvanced(gSettings);
         SettingsManager::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
         settingsManager->savePressure(gSettings);
         gSettings = settingsManager->getSettings()->pressure;
         Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
+        Pressure::setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
         gDraft = gSettings;
         gMode = UiMode::Run;
         gLastActivityMs = millis();
@@ -203,6 +204,14 @@ namespace {
             }
             case SettingsFocus::SensorMax:
                 gDraft.sensorMaxMpa += static_cast<float>(steps) * SENSOR_MAX_STEP_MPA;
+                SettingsManager::clampAdvanced(gDraft);
+                break;
+            case SettingsFocus::SensorMinVolts:
+                gDraft.sensorMinVolts += static_cast<float>(steps) * SENSOR_VOLT_STEP;
+                SettingsManager::clampAdvanced(gDraft);
+                break;
+            case SettingsFocus::SensorMaxVolts:
+                gDraft.sensorMaxVolts += static_cast<float>(steps) * SENSOR_VOLT_STEP;
                 SettingsManager::clampAdvanced(gDraft);
                 break;
             case SettingsFocus::Save:
@@ -366,10 +375,15 @@ void setup() {
 
     settingsManager = new SettingsManager();
     LOGGER.info("Setting manager started");
+    // First-boot defaults: restart immediately from setup (not from EEPROM ctor path).
+    if (settingsManager->handlePendingRestart(0)) {
+        return;
+    }
 
     gSettings = settingsManager->getSettings()->pressure;
     gDraft = gSettings;
     Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
+    Pressure::setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
 
     Pressure::begin(PIN_PRESSURE);
     Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
@@ -410,6 +424,11 @@ void setup() {
 }
 
 void loop() {
+    // WiFi settings save schedules restart; wait so AsyncWebServer can flush HTTP OK.
+    if (settingsManager->handlePendingRestart(00)) {
+        return;
+    }
+
     Encoder::update();
 
     wiFiController->update();

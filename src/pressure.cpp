@@ -1,11 +1,14 @@
 #include "pressure.h"
 
 #include "GlobalSettings.h"
+#include "Logger.h"
 
 namespace {
     int gPin = -1;
     float gSensorMaxMpa = PRESSURE_SENSOR_MAX_DEFAULT_MPA;
-    constexpr int kSamples = 8;
+    float gSensorMinVolts = SENSOR_VOLT_MIN_DEFAULT;
+    float gSensorMaxVolts = SENSOR_VOLT_MAX_DEFAULT;
+    constexpr int kSamples = 16;
 } // namespace
 
 namespace Pressure {
@@ -26,15 +29,45 @@ namespace Pressure {
         }
     }
 
+    void setSensorVolts(float minVolts, float maxVolts) {
+        gSensorMinVolts = minVolts;
+        gSensorMaxVolts = maxVolts;
+        if (gSensorMinVolts < SENSOR_VOLT_MIN) {
+            gSensorMinVolts = SENSOR_VOLT_MIN;
+        }
+        if (gSensorMinVolts > SENSOR_VOLT_MAX) {
+            gSensorMinVolts = SENSOR_VOLT_MAX;
+        }
+        if (gSensorMaxVolts < SENSOR_VOLT_MIN) {
+            gSensorMaxVolts = SENSOR_VOLT_MIN;
+        }
+        if (gSensorMaxVolts > SENSOR_VOLT_MAX) {
+            gSensorMaxVolts = SENSOR_VOLT_MAX;
+        }
+        if (gSensorMinVolts >= gSensorMaxVolts) {
+            gSensorMaxVolts = gSensorMinVolts + SENSOR_VOLT_STEP;
+            if (gSensorMaxVolts > SENSOR_VOLT_MAX) {
+                gSensorMaxVolts = SENSOR_VOLT_MAX;
+                gSensorMinVolts = SENSOR_VOLT_MAX - SENSOR_VOLT_STEP;
+            }
+        }
+    }
+
     float readMpa() {
-        uint32_t sum = 0;
+        double sum = 0;
         for (int i = 0; i < kSamples; ++i) {
-            sum += analogRead(gPin);
+            sum += (double)analogReadMilliVolts(gPin);
+            yield();
+            yield();
+            yield();
+            delay(2);
         }
         const float adc = static_cast<float>(sum) / static_cast<float>(kSamples);
-        // ADC 0 -> vacuum (0 MPa / 0 psi), ADC 4095 -> sensorMax
-        float mpa = (adc / 4095.0f) * gSensorMaxMpa - 0.1f;
-        // #endregion
+
+        float voltage = adc / 1000.0f;
+        float mpa = (voltage - gSensorMinVolts) / ((gSensorMaxVolts - gSensorMinVolts) / gSensorMaxMpa);
+
+        // LOGGER.info("red value = " + String(adc) + "  voltage = " + String(voltage) + "   pressure = " + String(mpa));
         return mpa;
     }
 } // namespace Pressure
