@@ -29,6 +29,8 @@ public:
 
     static void settingsApiProcessor(AsyncWebServerRequest *request);
 
+    static void sensorVoltageProcessor(AsyncWebServerRequest *request);
+
     static void loadFileByUrl(AsyncWebServerRequest *request);
 
 };

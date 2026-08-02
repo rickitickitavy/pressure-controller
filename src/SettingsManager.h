@@ -19,6 +19,9 @@ private:
 
     SettingsNavigator* navigator;
 
+    bool pendingRestart = false;
+    unsigned long restartRequestedMs = 0;
+
     /**
      * Загрузка настроек из EEPROM
      * @param settings
@@ -46,7 +49,7 @@ public:
     SettingsNavigator* getNavigator();
 
     /**
-     * Сохранение настроек в EEPROM и, при необходимости, перезапуск
+     * Сохранение настроек в EEPROM и, при необходимости, запрос перезапуска (из loop).
      * @param restart
      */
     void saveSetting(bool restart);
@@ -54,9 +57,16 @@ public:
     /**
      * Сохранить настройки из специфического буфера
      * @param settingsToSave
-     * @param restart
+     * @param restart when true, schedules ESP.restart() for the main loop (not here)
      */
     void saveSetting(GlobalSettings* settingsToSave, bool restart);
+
+    /**
+     * If a restart was requested by saveSetting(true), wait until delayMs elapsed
+     * since the request, then ESP.restart(). Call from setup/loop only.
+     * @return true if a restart was performed (does not return on success)
+     */
+    bool handlePendingRestart(unsigned long delayMs);
 
     /**
      * Save pump/pressure settings into EEPROM (no restart)

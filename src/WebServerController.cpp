@@ -5,6 +5,7 @@
 #include "WebServerController.h"
 #include "Defines.h"
 #include "Logger.h"
+#include "pressure.h"
 #include <LittleFS.h>
 
 String TEXT_PLAN = "text/plan";
@@ -36,6 +37,8 @@ WebServerController::WebServerController(SettingsManager *settingsManager) {
     webServer->on("/settingsApi", HTTP_GET, settingsApiProcessor);
     webServer->on("/settingsApi", HTTP_POST, settingsApiProcessor);
 
+    webServer->on("/sensorVoltage", HTTP_GET, sensorVoltageProcessor);
+
     webServer->onNotFound(loadFileByUrl);
 
     webServer->begin();
@@ -57,7 +60,7 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
 
     if (!parameter || parameter.isEmpty()) {
         String message = "\"" + parameterAttrName + "\" can't be null";
-        request->send(200, TEXT_PLAN, message);
+        request->send(400, TEXT_PLAN, message);
     } else if (parameter == "wifi") {
         if (operation = PARAMETER_OPERATION_WRITE) {
             LOGGER.info("all setting.");
@@ -73,9 +76,9 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
             LOGGER.info("   start check");
 
             if (!wifiSSID || wifiSSID.isEmpty()) {
-                request->send(503, TEXT_PLAN, "wiFiSsId can't be null");
+                request->send(400, TEXT_PLAN, "wiFiSsId can't be null");
             } else if (!wifiPassword || wifiPassword.isEmpty()) {
-                request->send(503, TEXT_PLAN, "wiFiPassword can't be null");
+                request->send(400, TEXT_PLAN, "wiFiPassword can't be null");
             } else {
                 LOGGER.info("   saving...");
 
@@ -100,7 +103,7 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
         } else {
             String message = "Read operation for \"wifi\" block unsupported. Use read for every parameter";
             LOGGER.error(message);
-            request->send(200, TEXT_PLAN, message);
+            request->send(400, TEXT_PLAN, message);
         }
     } else {
         if (operation == PARAMETER_OPERATION_READ) {
@@ -142,13 +145,18 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
             if (message.isEmpty()) {
                 request->send(200, TEXT_PLAN, OK_RESPONSE);
             } else {
-                request->send(503, TEXT_PLAN, message);
+                request->send(400, TEXT_PLAN, message);
                 LOGGER.error(message);
             }
 
         }
     }
 
+}
+//----------------------------------------------------------------------
+
+void WebServerController::sensorVoltageProcessor(AsyncWebServerRequest *request) {
+    request->send(200, TEXT_PLAN, String(Pressure::readVolts(), 3));
 }
 //----------------------------------------------------------------------
 
