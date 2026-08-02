@@ -166,6 +166,36 @@
             var buttons = document.querySelectorAll(".tab-btn");
             var panels = document.querySelectorAll(".tab-panel");
             var storageKey = "settingsActiveTab";
+            var sensorVoltageTimer = null;
+            var sensorVoltageField = document.getElementById("pressureSensorCurrentVolts");
+
+            function fetchSensorVoltage() {
+                if (!sensorVoltageField) {
+                    return;
+                }
+                fetch("/sensorVoltage")
+                    .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error("bad status");
+                        }
+                        return response.text();
+                    })
+                    .then(function (text) {
+                        sensorVoltageField.value = text.trim();
+                    })
+                    .catch(function () { /* ignore transient errors */ });
+            }
+
+            function setSensorVoltagePolling(enabled) {
+                if (sensorVoltageTimer !== null) {
+                    clearInterval(sensorVoltageTimer);
+                    sensorVoltageTimer = null;
+                }
+                if (enabled) {
+                    fetchSensorVoltage();
+                    sensorVoltageTimer = setInterval(fetchSensorVoltage, 1000);
+                }
+            }
 
             function showTab(name) {
                 buttons.forEach(function (btn) {
@@ -177,6 +207,7 @@
                 try {
                     sessionStorage.setItem(storageKey, name);
                 } catch (e) { /* ignore */ }
+                setSensorVoltagePolling(name === "sensor");
             }
 
             buttons.forEach(function (btn) {
@@ -386,6 +417,11 @@
             <input id="pressureSensorMaxVolts" type="number" step="0.01"
                    min="%pressure>sensorMaxVolts#min%" max="%pressure>sensorMaxVolts#max%"
                    value="%pressure>sensorMaxVolts%">
+        </div>
+
+        <div class="field">
+            <label for="pressureSensorCurrentVolts">Current (V)</label>
+            <input id="pressureSensorCurrentVolts" type="text" readonly value="—">
         </div>
     </div>
 </div>

@@ -9,6 +9,19 @@ namespace {
     float gSensorMinVolts = SENSOR_VOLT_MIN_DEFAULT;
     float gSensorMaxVolts = SENSOR_VOLT_MAX_DEFAULT;
     constexpr int kSamples = 16;
+
+    float readAveragedVolts() {
+        double sum = 0;
+        for (int i = 0; i < kSamples; ++i) {
+            sum += (double)analogReadMilliVolts(gPin);
+            yield();
+            yield();
+            yield();
+            delay(2);
+        }
+        const float adc = static_cast<float>(sum) / static_cast<float>(kSamples);
+        return adc / 1000.0f;
+    }
 } // namespace
 
 namespace Pressure {
@@ -53,21 +66,15 @@ namespace Pressure {
         }
     }
 
-    float readMpa() {
-        double sum = 0;
-        for (int i = 0; i < kSamples; ++i) {
-            sum += (double)analogReadMilliVolts(gPin);
-            yield();
-            yield();
-            yield();
-            delay(2);
-        }
-        const float adc = static_cast<float>(sum) / static_cast<float>(kSamples);
+    float readVolts() {
+        return readAveragedVolts();
+    }
 
-        float voltage = adc / 1000.0f;
+    float readMpa() {
+        float voltage = readAveragedVolts();
         float mpa = (voltage - gSensorMinVolts) / ((gSensorMaxVolts - gSensorMinVolts) / gSensorMaxMpa);
 
-        // LOGGER.info("red value = " + String(adc) + "  voltage = " + String(voltage) + "   pressure = " + String(mpa));
+        // LOGGER.info("voltage = " + String(voltage) + "   pressure = " + String(mpa));
         return mpa;
     }
 } // namespace Pressure

@@ -5,6 +5,7 @@
 #include "WebServerController.h"
 #include "Defines.h"
 #include "Logger.h"
+#include "pressure.h"
 #include <LittleFS.h>
 
 String TEXT_PLAN = "text/plan";
@@ -35,6 +36,8 @@ WebServerController::WebServerController(SettingsManager *settingsManager) {
 
     webServer->on("/settingsApi", HTTP_GET, settingsApiProcessor);
     webServer->on("/settingsApi", HTTP_POST, settingsApiProcessor);
+
+    webServer->on("/sensorVoltage", HTTP_GET, sensorVoltageProcessor);
 
     webServer->onNotFound(loadFileByUrl);
 
@@ -149,6 +152,11 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
         }
     }
 
+}
+//----------------------------------------------------------------------
+
+void WebServerController::sensorVoltageProcessor(AsyncWebServerRequest *request) {
+    request->send(200, TEXT_PLAN, String(Pressure::readVolts(), 3));
 }
 //----------------------------------------------------------------------
 
