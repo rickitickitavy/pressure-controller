@@ -156,7 +156,7 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
 //----------------------------------------------------------------------
 
 void WebServerController::sensorVoltageProcessor(AsyncWebServerRequest *request) {
-    request->send(200, TEXT_PLAN, String(Pressure::readVolts(), 3));
+    request->send(200, TEXT_PLAN, String(PRESSURE.readVolts(), 3));
 }
 //----------------------------------------------------------------------
 

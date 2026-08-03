@@ -31,6 +31,12 @@ Rules below are from the pressure-controller stack only. Do not invent generic E
 - **Allowed:** intentional logical singletons (e.g. `LOGGER`).
 - Wire ownership and callbacks from outside the class (e.g. `main.cpp`).
 
+## Universal algorithms vs project config
+
+- **Not allowed:** project-specific parameter names, units, or special cases inside shared algorithms (e.g. `SettingsNavigator` float formatting keyed off `"pressure>sensorMinVolts"`).
+- **Allowed:** neutral metadata on shared types (e.g. `ParamDescriptor::decimalPlaces`) and project-specific values only at registration/config sites.
+- Extend the shared API; do not grow `if (paramName == "...")` lists in the generic path.
+
 ## Layout and stack
 
 - Pins as `constexpr` in `include/pins.h`.

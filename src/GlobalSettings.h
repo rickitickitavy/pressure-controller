@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define GLOBAL_CURRENT_SETTINGS_VERSION 3
+#define GLOBAL_CURRENT_SETTINGS_VERSION 4
 #define GLOBAL_SETTINGS_MARKER_0 0x31
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
@@ -22,9 +22,21 @@ constexpr float SENSOR_MAX_MAX_MPA = 5.000f; // 50.0 atm
 
 constexpr float SENSOR_VOLT_MIN = 0.0f;
 constexpr float SENSOR_VOLT_MAX = 5.0f;
-constexpr float SENSOR_VOLT_STEP = 0.01f;
-constexpr float SENSOR_VOLT_MIN_DEFAULT = 0.0f;
-constexpr float SENSOR_VOLT_MAX_DEFAULT = 4.5f;
+constexpr float SENSOR_VOLT_STEP = 0.005f;
+constexpr float SENSOR_VOLT_MIN_DEFAULT = 1.005f;
+constexpr float SENSOR_VOLT_MAX_DEFAULT = 4.85f;
+
+constexpr int SAMPLES_COUNT_MIN = 5;
+constexpr int SAMPLES_COUNT_MAX = 120;
+constexpr int SAMPLES_COUNT_DEFAULT = 40;
+
+constexpr int MEASURE_INTERVAL_MS_MIN = 20;
+constexpr int MEASURE_INTERVAL_MS_MAX = 1000;
+constexpr int MEASURE_INTERVAL_MS_DEFAULT = 70;
+
+constexpr int MEASUREMENTS_COUNT_MIN = 1;
+constexpr int MEASUREMENTS_COUNT_MAX = 16;
+constexpr int MEASUREMENTS_COUNT_DEFAULT = 4;
 
 constexpr int LEAK_SEC_MIN = 5;
 constexpr int LEAK_SEC_MAX = 40;
@@ -67,6 +79,9 @@ struct PressureSettings {
     bool leakDetectEnabled = true; // when false, LEAK timeout is ignored
     float sensorMinVolts = SENSOR_VOLT_MIN_DEFAULT; // ADC voltage at 0 MPa
     float sensorMaxVolts = SENSOR_VOLT_MAX_DEFAULT; // ADC voltage at sensorMaxMpa
+    int samplesCount = SAMPLES_COUNT_DEFAULT;
+    int measureIntervalMs = MEASURE_INTERVAL_MS_DEFAULT;
+    int measurementsCount = MEASUREMENTS_COUNT_DEFAULT;
 };
 
 struct GlobalSettings {
@@ -160,6 +175,12 @@ struct GlobalSettings {
      * Default OFF.
      */
     bool displayRotate180 = false;
+
+    /**
+     * When true, MQTT client is started on STA (appended; no schema version bump).
+     * Default ON.
+     */
+    bool mqttEnabled = true;
 };
 
 #endif //EFLAME328_SETTINGS_H

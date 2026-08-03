@@ -56,6 +56,7 @@ private:
 
 public:
     MqttClient(GlobalSettings *settings);
+    ~MqttClient();
 
     void setPumpControlHandler(PumpControlFn fn);
     void setMessageCallback(MessageCallback cb);
