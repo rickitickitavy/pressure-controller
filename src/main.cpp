@@ -5,10 +5,17 @@
 #include "encoder.h"
 #include "pins.h"
 #include "pressure.h"
+#include "mqtt_control.h"
 #include <LittleFS.h>
 #include "SettingsManager.h"
 #include "WiFiController.h"
 #include "MqttClient.h"
+
+static bool gMqttResyncRequested = false;
+
+void mqttRequestResync() {
+    gMqttResyncRequested = true;
+}
 
 namespace {
     constexpr unsigned long kEditIdleMs = 5000;
@@ -139,12 +146,18 @@ namespace {
         gSettings.sensorMaxMpa = gDraft.sensorMaxMpa;
         gSettings.sensorMinVolts = gDraft.sensorMinVolts;
         gSettings.sensorMaxVolts = gDraft.sensorMaxVolts;
+        gSettings.samplesCount = gDraft.samplesCount;
+        gSettings.measureIntervalMs = gDraft.measureIntervalMs;
+        gSettings.measurementsCount = gDraft.measurementsCount;
         SettingsManager::clampAdvanced(gSettings);
         SettingsManager::clampPair(gSettings.minMpa, gSettings.maxMpa, gSettings.sensorMaxMpa);
         settingsManager->savePressure(gSettings);
         gSettings = settingsManager->getSettings()->pressure;
-        Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
-        Pressure::setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
+        PRESSURE.setSensorMaxMpa(gSettings.sensorMaxMpa);
+        PRESSURE.setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
+        PRESSURE.setSamplesCount(gSettings.samplesCount);
+        PRESSURE.setMeasureIntervalMs(gSettings.measureIntervalMs);
+        PRESSURE.setMeasurementsCount(gSettings.measurementsCount);
         gDraft = gSettings;
         gMode = UiMode::Run;
         gLastActivityMs = millis();
@@ -214,6 +227,39 @@ namespace {
                 gDraft.sensorMaxVolts += static_cast<float>(steps) * SENSOR_VOLT_STEP;
                 SettingsManager::clampAdvanced(gDraft);
                 break;
+            case SettingsFocus::SamplesCount: {
+                int v = gDraft.samplesCount + steps;
+                if (v < SAMPLES_COUNT_MIN) {
+                    v = SAMPLES_COUNT_MIN;
+                }
+                if (v > SAMPLES_COUNT_MAX) {
+                    v = SAMPLES_COUNT_MAX;
+                }
+                gDraft.samplesCount = v;
+                break;
+            }
+            case SettingsFocus::MeasureIntervalMs: {
+                int v = gDraft.measureIntervalMs + steps;
+                if (v < MEASURE_INTERVAL_MS_MIN) {
+                    v = MEASURE_INTERVAL_MS_MIN;
+                }
+                if (v > MEASURE_INTERVAL_MS_MAX) {
+                    v = MEASURE_INTERVAL_MS_MAX;
+                }
+                gDraft.measureIntervalMs = v;
+                break;
+            }
+            case SettingsFocus::MeasurementsCount: {
+                int v = gDraft.measurementsCount + steps;
+                if (v < MEASUREMENTS_COUNT_MIN) {
+                    v = MEASUREMENTS_COUNT_MIN;
+                }
+                if (v > MEASUREMENTS_COUNT_MAX) {
+                    v = MEASUREMENTS_COUNT_MAX;
+                }
+                gDraft.measurementsCount = v;
+                break;
+            }
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
             case SettingsFocus::Count:
@@ -341,7 +387,28 @@ namespace {
         }
     }
 
-    void startMqttIfNeeded() {
+    void syncMqtt(bool isAp, bool wifiConnected) {
+        const bool want =
+                !isAp && wifiConnected && settingsManager->getSettings()->mqttEnabled;
+
+        if (gMqttResyncRequested) {
+            gMqttResyncRequested = false;
+            if (mqtt != nullptr) {
+                delete mqtt;
+                mqtt = nullptr;
+                LOGGER.info("MQTT client stopped (settings changed)");
+            }
+        }
+
+        if (!want) {
+            if (mqtt != nullptr) {
+                delete mqtt;
+                mqtt = nullptr;
+                LOGGER.info("MQTT client stopped");
+            }
+            return;
+        }
+
         if (mqtt != nullptr) {
             return;
         }
@@ -382,10 +449,13 @@ void setup() {
 
     gSettings = settingsManager->getSettings()->pressure;
     gDraft = gSettings;
-    Pressure::setSensorMaxMpa(gSettings.sensorMaxMpa);
-    Pressure::setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
+    PRESSURE.setSensorMaxMpa(gSettings.sensorMaxMpa);
+    PRESSURE.setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
+    PRESSURE.setSamplesCount(gSettings.samplesCount);
+    PRESSURE.setMeasureIntervalMs(gSettings.measureIntervalMs);
+    PRESSURE.setMeasurementsCount(gSettings.measurementsCount);
 
-    Pressure::begin(PIN_PRESSURE);
+    PRESSURE.begin(PIN_PRESSURE);
     Encoder::begin(PIN_ENCODER_A, PIN_ENCODER_B, PIN_ENCODER_BTN);
     Display::begin(settingsManager->getSettings()->displayRotate180);
 
@@ -415,8 +485,11 @@ void setup() {
     } else if (!WiFi.isConnected()) {
         mqtt = nullptr;
         LOGGER.info("MQTT client skipped (WiFi STA not connected)");
+    } else if (!settingsManager->getSettings()->mqttEnabled) {
+        mqtt = nullptr;
+        LOGGER.info("MQTT client skipped (disabled)");
     } else {
-        startMqttIfNeeded();
+        syncMqtt(false, true);
     }
 
     gLastActivityMs = millis();
@@ -449,10 +522,8 @@ void loop() {
         ArduinoOTA.handle();
     }
 
-    // Start MQTT once STA has a link (boot miss, AP timeout, or later reconnect).
-    if (!isAp && WiFi.isConnected()) {
-        startMqttIfNeeded();
-    }
+    // Apply mqttEnabled / broker settings on every loop (including after web save).
+    syncMqtt(isAp, WiFi.isConnected());
 
     if (gMode == UiMode::Settings) {
         (void) Encoder::consumeLongPress();
@@ -470,7 +541,7 @@ void loop() {
         }
     }
 
-    const float pressure = Pressure::readMpa();
+    const float pressure = PRESSURE.readMpa();
     updateControl(pressure);
 
     if (mqtt != nullptr) {

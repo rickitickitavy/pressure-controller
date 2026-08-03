@@ -60,6 +60,7 @@
             var wiFiSsId = document.getElementById("wiFiSSID").value;
             var wiFiPassword = document.getElementById("wiFiPassword").value;
             var networkEnableOta = document.getElementById("networkEnableOta").checked ? "1" : "0";
+            var mqttEnabled = document.getElementById("mqttEnabled").checked ? "1" : "0";
             var mqttServer = document.getElementById("mqttServer").value;
             var mqttPort = document.getElementById("mqttPort").value;
             var mqttDeviceName = document.getElementById("mqttDeviceName").value;
@@ -81,6 +82,9 @@
             var pressureSensorMaxAtm = document.getElementById("pressureSensorMax").value;
             var pressureSensorMinVolts = document.getElementById("pressureSensorMinVolts").value;
             var pressureSensorMaxVolts = document.getElementById("pressureSensorMaxVolts").value;
+            var pressureSamplesCount = document.getElementById("pressureSamplesCount").value;
+            var pressureMeasureIntervalMs = document.getElementById("pressureMeasureIntervalMs").value;
+            var pressureMeasurementsCount = document.getElementById("pressureMeasurementsCount").value;
             var displayRotate180 = document.getElementById("displayRotate180").checked ? "1" : "0";
 
             var saveNetworkSettings = function () {
@@ -108,7 +112,8 @@
                 });
             };
 
-            var mqttBody = "operation=write&parameter=mqtt>server=" + mqttServer
+            var mqttBody = "operation=write&parameter=mqtt>mqttEnabled=" + mqttEnabled
+                + "|mqtt>server=" + mqttServer
                 + "|mqtt>port=" + mqttPort
                 + "|mqtt>deviceName=" + mqttDeviceName
                 + "|mqtt>reconnectIntervalMs=" + mqttReconnectIntervalMs
@@ -129,6 +134,9 @@
                 + "|pressure>sensorMaxAtm=" + pressureSensorMaxAtm
                 + "|pressure>sensorMinVolts=" + pressureSensorMinVolts
                 + "|pressure>sensorMaxVolts=" + pressureSensorMaxVolts
+                + "|pressure>samplesCount=" + pressureSamplesCount
+                + "|pressure>measureIntervalMs=" + pressureMeasureIntervalMs
+                + "|pressure>measurementsCount=" + pressureMeasurementsCount
                 + "|display>rotate180=" + displayRotate180;
 
             fetch("/settingsApi", {
@@ -159,6 +167,10 @@
             var rotate180 = document.getElementById("displayRotate180");
             if (rotate180) {
                 rotate180.checked = rotate180.getAttribute("data-value") === "1";
+            }
+            var mqttEnabled = document.getElementById("mqttEnabled");
+            if (mqttEnabled) {
+                mqttEnabled.checked = mqttEnabled.getAttribute("data-value") === "1";
             }
         }
 
@@ -289,6 +301,11 @@
     </div>
 
     <div id="tab-mqtt" class="tab-panel" role="tabpanel">
+        <div class="field field-check">
+            <input id="mqttEnabled" type="checkbox" data-value="%mqtt>mqttEnabled%">
+            <label for="mqttEnabled">MQTT enabled</label>
+        </div>
+
         <div class="field">
             <label for="mqttServer">MQTT server</label>
             <input id="mqttServer" type="text" autocomplete="off" value="%mqtt>server%">
@@ -417,6 +434,27 @@
             <input id="pressureSensorMaxVolts" type="number" step="0.01"
                    min="%pressure>sensorMaxVolts#min%" max="%pressure>sensorMaxVolts#max%"
                    value="%pressure>sensorMaxVolts%">
+        </div>
+
+        <div class="field">
+            <label for="pressureSamplesCount">Samples count</label>
+            <input id="pressureSamplesCount" type="number" step="1"
+                   min="%pressure>samplesCount#min%" max="%pressure>samplesCount#max%"
+                   value="%pressure>samplesCount%">
+        </div>
+
+        <div class="field">
+            <label for="pressureMeasureIntervalMs">Measure interval (ms)</label>
+            <input id="pressureMeasureIntervalMs" type="number" step="1"
+                   min="%pressure>measureIntervalMs#min%" max="%pressure>measureIntervalMs#max%"
+                   value="%pressure>measureIntervalMs%">
+        </div>
+
+        <div class="field">
+            <label for="pressureMeasurementsCount">Measurements count</label>
+            <input id="pressureMeasurementsCount" type="number" step="1"
+                   min="%pressure>measurementsCount#min%" max="%pressure>measurementsCount#max%"
+                   value="%pressure>measurementsCount%">
         </div>
 
         <div class="field">

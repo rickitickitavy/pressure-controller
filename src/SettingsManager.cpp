@@ -34,6 +34,10 @@ SettingsManager::SettingsManager(){
             // v2 -> v3: PressureSettings gained sensorMinVolts / sensorMaxVolts.
             settings.pressure.sensorMinVolts = SENSOR_VOLT_MIN_DEFAULT;
             settings.pressure.sensorMaxVolts = SENSOR_VOLT_MAX_DEFAULT;
+            // v3 -> v4: PressureSettings gained samplesCount / measureIntervalMs / measurementsCount.
+            settings.pressure.samplesCount = SAMPLES_COUNT_DEFAULT;
+            settings.pressure.measureIntervalMs = MEASURE_INTERVAL_MS_DEFAULT;
+            settings.pressure.measurementsCount = MEASUREMENTS_COUNT_DEFAULT;
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
@@ -51,6 +55,13 @@ SettingsManager::SettingsManager(){
             memcpy(&raw, &settings.displayRotate180, sizeof(raw));
             if (raw > 1) {
                 settings.displayRotate180 = false;
+            }
+        }
+        {
+            uint8_t raw = 0;
+            memcpy(&raw, &settings.mqttEnabled, sizeof(raw));
+            if (raw > 1) {
+                settings.mqttEnabled = true;
             }
         }
     }
@@ -98,6 +109,7 @@ void SettingsManager::applyDefaults() {
     settings.pressurePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
     settings.pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
     settings.displayRotate180 = false;
+    settings.mqttEnabled = true;
 
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
@@ -178,6 +190,18 @@ void SettingsManager::clampAdvanced(PressureSettings &s) {
                 s.sensorMinVolts = SENSOR_VOLT_MAX - SENSOR_VOLT_STEP;
             }
         }
+    }
+
+    if (s.samplesCount < SAMPLES_COUNT_MIN || s.samplesCount > SAMPLES_COUNT_MAX) {
+        s.samplesCount = SAMPLES_COUNT_DEFAULT;
+    }
+    if (s.measureIntervalMs < MEASURE_INTERVAL_MS_MIN ||
+        s.measureIntervalMs > MEASURE_INTERVAL_MS_MAX) {
+        s.measureIntervalMs = MEASURE_INTERVAL_MS_DEFAULT;
+    }
+    if (s.measurementsCount < MEASUREMENTS_COUNT_MIN ||
+        s.measurementsCount > MEASUREMENTS_COUNT_MAX) {
+        s.measurementsCount = MEASUREMENTS_COUNT_DEFAULT;
     }
 }
 //--------------------------------------------------------------------
@@ -303,6 +327,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      host: " + String(settings.network.hostName));
     LOGGER.info("      enableOtaOnNetwork: " + String(settings.network.enableOtaOnNetwork ? "true" : "false"));
     LOGGER.info("   mqtt:");
+    LOGGER.info("      enabled: " + String(settings.mqttEnabled ? "true" : "false"));
     LOGGER.info("      server: " + String(settings.mqttServer));
     LOGGER.info("      port: " + String(settings.mqttPort));
     LOGGER.info("      reconIntervalMs: " + String(settings.mqttReconnectIntervalMs));
@@ -325,5 +350,8 @@ void SettingsManager::logSettings() {
     LOGGER.info("      sensorMaxMpa: " + String(settings.pressure.sensorMaxMpa));
     LOGGER.info("      sensorMinVolts: " + String(settings.pressure.sensorMinVolts));
     LOGGER.info("      sensorMaxVolts: " + String(settings.pressure.sensorMaxVolts));
+    LOGGER.info("      samplesCount: " + String(settings.pressure.samplesCount));
+    LOGGER.info("      measureIntervalMs: " + String(settings.pressure.measureIntervalMs));
+    LOGGER.info("      measurementsCount: " + String(settings.pressure.measurementsCount));
 }
 //--------------------------------------------------------------------

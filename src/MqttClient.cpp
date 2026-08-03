@@ -21,6 +21,18 @@ MqttClient::MqttClient(GlobalSettings *settings) {
     lastCheckTime = 0;
 }
 
+MqttClient::~MqttClient() {
+    if (client != nullptr) {
+        client->disconnect();
+        delete client;
+        client = nullptr;
+    }
+    if (espClient != nullptr) {
+        delete espClient;
+        espClient = nullptr;
+    }
+}
+
 void MqttClient::setPumpControlHandler(PumpControlFn fn) {
     pumpControlHandler = fn;
 }

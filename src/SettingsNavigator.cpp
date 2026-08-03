@@ -6,6 +6,7 @@
 #include "SettingsNavigator.h"
 #include "Logger.h"
 #include "pressure.h"
+#include "mqtt_control.h"
 
 SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
     this->settingsManager = settingsManager;
@@ -44,6 +45,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            63,
                                                                            (void *) &settings->mqttServer[0],
                                                                            (void *) &settings->mqttServer[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>mqttEnabled", BOOLEAN, 0,
+                                                                           1,
+                                                                           (void *) &settings->mqttEnabled,
+                                                                           (void *) &settings->mqttEnabled);
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>port", INTEGER, 30, 65534,
                                                                            (void *) &settings->mqttPort,
                                                                            (void *) &settings->mqttPort);
@@ -134,6 +139,21 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            SENSOR_VOLT_MIN, SENSOR_VOLT_MAX,
                                                                            (void *) &settings->pressure.sensorMaxVolts,
                                                                            (void *) &settings->pressure.sensorMaxVolts);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>samplesCount", INTEGER,
+                                                                           static_cast<float>(SAMPLES_COUNT_MIN),
+                                                                           static_cast<float>(SAMPLES_COUNT_MAX),
+                                                                           (void *) &settings->pressure.samplesCount,
+                                                                           (void *) &settings->pressure.samplesCount);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>measureIntervalMs", INTEGER,
+                                                                           static_cast<float>(MEASURE_INTERVAL_MS_MIN),
+                                                                           static_cast<float>(MEASURE_INTERVAL_MS_MAX),
+                                                                           (void *) &settings->pressure.measureIntervalMs,
+                                                                           (void *) &settings->pressure.measureIntervalMs);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("pressure>measurementsCount", INTEGER,
+                                                                           static_cast<float>(MEASUREMENTS_COUNT_MIN),
+                                                                           static_cast<float>(MEASUREMENTS_COUNT_MAX),
+                                                                           (void *) &settings->pressure.measurementsCount,
+                                                                           (void *) &settings->pressure.measurementsCount);
 
 }
 
@@ -297,8 +317,12 @@ String SettingsNavigator::saveSettingsByNames(String *params, int paramsCount) {
 
     settingsManager->saveSetting(false);
 
-    Pressure::setSensorMaxMpa(settings->pressure.sensorMaxMpa);
-    Pressure::setSensorVolts(settings->pressure.sensorMinVolts, settings->pressure.sensorMaxVolts);
+    PRESSURE.setSensorMaxMpa(settings->pressure.sensorMaxMpa);
+    PRESSURE.setSensorVolts(settings->pressure.sensorMinVolts, settings->pressure.sensorMaxVolts);
+    PRESSURE.setSamplesCount(settings->pressure.samplesCount);
+    PRESSURE.setMeasureIntervalMs(settings->pressure.measureIntervalMs);
+    PRESSURE.setMeasurementsCount(settings->pressure.measurementsCount);
+    mqttRequestResync();
 
     settingsManager->logSettings();
 

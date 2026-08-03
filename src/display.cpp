@@ -39,15 +39,15 @@ namespace {
     // Top of pump band → icon y=159 (12px above previous centered y=171).
     constexpr int kPumpIconPadY = 1;
 
-    // Settings screen: 7 equal rows (5 px leftover at bottom).
-    constexpr int kSettingsRowH = TFT_HEIGHT / 7;
+    // Settings screen: 10 equal rows.
+    constexpr int kSettingsRowH = TFT_HEIGHT / 10;
 
     static_assert(kYMax + kHMax + 5 == kYMac, "5px gap max/mac");
     static_assert(kYMac + kHMac == kYCurrent, "gap mac/current");
     static_assert(kYCurrent + kHCurrent == kYPump, "gap current/pump");
     static_assert(kYPump + kHPump == kYMin, "gap pump/min");
     static_assert(kYMin + kHMin == TFT_HEIGHT, "min must reach bottom");
-    static_assert(kSettingsRowH * 7 <= TFT_HEIGHT, "settings rows must fit height");
+    static_assert(kSettingsRowH * 10 <= TFT_HEIGHT, "settings rows must fit height");
 
     const int16_t pump_x[] = {32, 47, 22, 89, 98, 11, 0, 38};
     const int16_t pump_w[] = {40, 10, 66, 8, 14, 10, 10, 50};
@@ -306,8 +306,17 @@ namespace {
         snprintf(buf, sizeof(buf), "VMAX %.2f", state.draft.sensorMaxVolts);
         drawSettingsRow(4, buf, state.focus == SettingsFocus::SensorMaxVolts);
 
-        drawSettingsRow(5, "SAVE", state.focus == SettingsFocus::Save);
-        drawSettingsRow(6, "CANCEL", state.focus == SettingsFocus::Cancel);
+        snprintf(buf, sizeof(buf), "SAMP %d", state.draft.samplesCount);
+        drawSettingsRow(5, buf, state.focus == SettingsFocus::SamplesCount);
+
+        snprintf(buf, sizeof(buf), "INTV %d", state.draft.measureIntervalMs);
+        drawSettingsRow(6, buf, state.focus == SettingsFocus::MeasureIntervalMs);
+
+        snprintf(buf, sizeof(buf), "MCNT %d", state.draft.measurementsCount);
+        drawSettingsRow(7, buf, state.focus == SettingsFocus::MeasurementsCount);
+
+        drawSettingsRow(8, "SAVE", state.focus == SettingsFocus::Save);
+        drawSettingsRow(9, "CANCEL", state.focus == SettingsFocus::Cancel);
     }
 
     bool nearlyEq(float a, float b, float eps) {
@@ -318,7 +327,10 @@ namespace {
         return a.leakDetectSec != b.leakDetectSec || a.pumpWeakSec != b.pumpWeakSec ||
                !nearlyEq(a.sensorMaxMpa, b.sensorMaxMpa, 0.001f) ||
                !nearlyEq(a.sensorMinVolts, b.sensorMinVolts, 0.001f) ||
-               !nearlyEq(a.sensorMaxVolts, b.sensorMaxVolts, 0.001f);
+               !nearlyEq(a.sensorMaxVolts, b.sensorMaxVolts, 0.001f) ||
+               a.samplesCount != b.samplesCount ||
+               a.measureIntervalMs != b.measureIntervalMs ||
+               a.measurementsCount != b.measurementsCount;
     }
 } // namespace
 
