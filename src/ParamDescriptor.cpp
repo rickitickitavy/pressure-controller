@@ -5,7 +5,7 @@
 #include "ParamDescriptor.h"
 
 ParamDescriptor::ParamDescriptor(String paramName, ParamType paramType, float minValue, float maxValue,
-                                 void *valueReferenceForRead, void *valueReferenceForWrite) {
+                                 void *valueReferenceForRead, void *valueReferenceForWrite, int decimalPlaces) {
     this->paramName = paramName;
     this->paramType = paramType;
     this->minValue = minValue;
@@ -13,10 +13,11 @@ ParamDescriptor::ParamDescriptor(String paramName, ParamType paramType, float mi
     this->valueReferenceForRead = valueReferenceForRead;
     this->valueReferenceForWrite = valueReferenceForWrite;
     this->arraySize = 0;
+    this->decimalPlaces = decimalPlaces;
 }
 
 ParamDescriptor::ParamDescriptor(String paramName, ParamType paramType, float minValue, float maxValue, int arraySize,
-                                 void *valueReferenceForRead, void *valueReferenceForWrite) {
+                                 void *valueReferenceForRead, void *valueReferenceForWrite, int decimalPlaces) {
     this->paramName = paramName;
     this->paramType = paramType;
     this->minValue = minValue;
@@ -24,4 +25,5 @@ ParamDescriptor::ParamDescriptor(String paramName, ParamType paramType, float mi
     this->valueReferenceForRead = valueReferenceForRead;
     this->valueReferenceForWrite = valueReferenceForWrite;
     this->arraySize = arraySize;
+    this->decimalPlaces = decimalPlaces;
 }

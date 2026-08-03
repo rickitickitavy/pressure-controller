@@ -21,6 +21,7 @@ public:
     float minValue;
     float maxValue;
     int arraySize;
+    int decimalPlaces;
     void *valueReferenceForRead;
     void *valueReferenceForWrite;
 
@@ -28,10 +29,10 @@ public:
 //                , (void *) &settings->activeProfile.flameSettings.loopIntervalMs, (void *) &tempProfile.flameSettings.loopIntervalMs)}
 
     ParamDescriptor(String paramName, ParamType paramType, float minValue, float maxValue,
-                    void *valueReferenceForRead, void *valueReferenceForWrite);
+                    void *valueReferenceForRead, void *valueReferenceForWrite, int decimalPlaces = 2);
 
     ParamDescriptor(String paramName, ParamType paramType, float minValue, float maxValue, int arraySize,
-                    void *valueReferenceForRead, void *valueReferenceForWrite);
+                    void *valueReferenceForRead, void *valueReferenceForWrite, int decimalPlaces = 2);
 };
 
 #endif //EFLAMEESP8266_PARAMDESCRIPTOR_H

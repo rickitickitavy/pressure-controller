@@ -300,10 +300,10 @@ namespace {
         snprintf(buf, sizeof(buf), "SENS %.1f", toAtm(state.draft.sensorMaxMpa));
         drawSettingsRow(2, buf, state.focus == SettingsFocus::SensorMax);
 
-        snprintf(buf, sizeof(buf), "VMIN %.2f", state.draft.sensorMinVolts);
+        snprintf(buf, sizeof(buf), "VMIN %.3f", state.draft.sensorMinVolts);
         drawSettingsRow(3, buf, state.focus == SettingsFocus::SensorMinVolts);
 
-        snprintf(buf, sizeof(buf), "VMAX %.2f", state.draft.sensorMaxVolts);
+        snprintf(buf, sizeof(buf), "VMAX %.3f", state.draft.sensorMaxVolts);
         drawSettingsRow(4, buf, state.focus == SettingsFocus::SensorMaxVolts);
 
         snprintf(buf, sizeof(buf), "SAMP %d", state.draft.samplesCount);

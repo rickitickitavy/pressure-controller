@@ -61,7 +61,7 @@ SettingsManager::SettingsManager(){
             uint8_t raw = 0;
             memcpy(&raw, &settings.mqttEnabled, sizeof(raw));
             if (raw > 1) {
-                settings.mqttEnabled = true;
+                settings.mqttEnabled = false;
             }
         }
     }

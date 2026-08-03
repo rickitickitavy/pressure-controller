@@ -22,17 +22,17 @@ constexpr float SENSOR_MAX_MAX_MPA = 5.000f; // 50.0 atm
 
 constexpr float SENSOR_VOLT_MIN = 0.0f;
 constexpr float SENSOR_VOLT_MAX = 5.0f;
-constexpr float SENSOR_VOLT_STEP = 0.01f;
-constexpr float SENSOR_VOLT_MIN_DEFAULT = 0.0f;
-constexpr float SENSOR_VOLT_MAX_DEFAULT = 4.5f;
+constexpr float SENSOR_VOLT_STEP = 0.005f;
+constexpr float SENSOR_VOLT_MIN_DEFAULT = 1.005f;
+constexpr float SENSOR_VOLT_MAX_DEFAULT = 4.85f;
 
 constexpr int SAMPLES_COUNT_MIN = 5;
 constexpr int SAMPLES_COUNT_MAX = 120;
-constexpr int SAMPLES_COUNT_DEFAULT = 20;
+constexpr int SAMPLES_COUNT_DEFAULT = 40;
 
 constexpr int MEASURE_INTERVAL_MS_MIN = 20;
 constexpr int MEASURE_INTERVAL_MS_MAX = 1000;
-constexpr int MEASURE_INTERVAL_MS_DEFAULT = 100;
+constexpr int MEASURE_INTERVAL_MS_DEFAULT = 70;
 
 constexpr int MEASUREMENTS_COUNT_MIN = 1;
 constexpr int MEASUREMENTS_COUNT_MAX = 16;
