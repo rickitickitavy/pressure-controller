@@ -81,6 +81,8 @@ public:
 
     static void clampMqttPublishMinInterval(int& intervalSec);
 
+    static void clampMqttClientTimeout(int& timeoutMs);
+
     /**
      * Сброс настроек WiFi в дефолтовые
      */

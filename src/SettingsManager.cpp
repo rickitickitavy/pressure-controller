@@ -52,6 +52,7 @@ SettingsManager::SettingsManager(){
         clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
         clampMqttPublishMinInterval(settings.pressurePubMinIntSec);
         clampMqttPublishMinInterval(settings.pumpStatePubMinIntSec);
+        clampMqttClientTimeout(settings.mqttClientTimeoutMs);
         {
             uint8_t raw = 0;
             memcpy(&raw, &settings.displayRotate180, sizeof(raw));
@@ -113,6 +114,7 @@ void SettingsManager::applyDefaults() {
     settings.pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
     settings.displayRotate180 = false;
     settings.mqttEnabled = true;
+    settings.mqttClientTimeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
 
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
@@ -132,6 +134,14 @@ void SettingsManager::clampMqttPublishMinInterval(int &intervalSec) {
     if (intervalSec < MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN ||
         intervalSec > MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX) {
         intervalSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
+    }
+}
+//--------------------------------------------------------------------
+
+void SettingsManager::clampMqttClientTimeout(int &timeoutMs) {
+    if (timeoutMs < MQTT_CLIENT_TIMEOUT_MS_MIN ||
+        timeoutMs > MQTT_CLIENT_TIMEOUT_MS_MAX) {
+        timeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
     }
 }
 //--------------------------------------------------------------------
@@ -335,6 +345,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      server: " + String(settings.mqttServer));
     LOGGER.info("      port: " + String(settings.mqttPort));
     LOGGER.info("      reconIntervalMs: " + String(settings.mqttReconnectIntervalMs));
+    LOGGER.info("      clientTimeoutMs: " + String(settings.mqttClientTimeoutMs));
     LOGGER.info("      device name: " + String(settings.mqttDeviceName));
     LOGGER.info("      The name of the topic to report that the device is alive:   " + String(settings.topicTheDeviceIsAlive));
     LOGGER.info("      The name of topic to report the pump state:                 " + String(settings.topicThePumpState) + "/" + String(settings.mqttDeviceName));

@@ -66,6 +66,7 @@
             var mqttPort = document.getElementById("mqttPort").value;
             var mqttDeviceName = document.getElementById("mqttDeviceName").value;
             var mqttReconnectIntervalMs = document.getElementById("mqttReconnectIntervalMs").value;
+            var mqttClientTimeoutMs = document.getElementById("mqttClientTimeoutMs").value;
             var mqttTopicTheDeviceIsAlive = document.getElementById("mqttTopicTheDeviceIsAlive").value;
             var mqttTopicThePumpState = document.getElementById("mqttTopicThePumpState").value;
             var mqttTopicPressureValue = document.getElementById("mqttTopicPressureValue").value;
@@ -119,6 +120,7 @@
                 + "|mqtt>port=" + mqttPort
                 + "|mqtt>deviceName=" + mqttDeviceName
                 + "|mqtt>reconnectIntervalMs=" + mqttReconnectIntervalMs
+                + "|mqtt>mqttClientTimeoutMs=" + mqttClientTimeoutMs
                 + "|mqtt>topicTheDeviceIsAlive=" + mqttTopicTheDeviceIsAlive
                 + "|mqtt>topicThePumpState=" + mqttTopicThePumpState
                 + "|mqtt>topicPressureValue=" + mqttTopicPressureValue
@@ -335,6 +337,13 @@
         <div class="field">
             <label for="mqttReconnectIntervalMs">Reconnect interval (ms)</label>
             <input id="mqttReconnectIntervalMs" type="number" inputmode="numeric" value="%mqtt>reconnectIntervalMs%">
+        </div>
+
+        <div class="field">
+            <label for="mqttClientTimeoutMs">MQTT connect timeout (ms)</label>
+            <p class="field-hint">TCP connect timeout when reaching the broker (50–1500)</p>
+            <input id="mqttClientTimeoutMs" type="number" inputmode="numeric"
+                   min="50" max="1500" step="1" value="%mqtt>mqttClientTimeoutMs%">
         </div>
 
         <div class="field">

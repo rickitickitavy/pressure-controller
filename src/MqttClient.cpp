@@ -7,6 +7,18 @@
 #include "Defines.h"
 #include <math.h>
 
+namespace {
+constexpr unsigned long MQTT_RECONNECT_BACKOFF_MAX_MS = 30000UL;
+
+int clampedClientTimeoutMs(const GlobalSettings *settings) {
+    int timeoutMs = settings->mqttClientTimeoutMs;
+    if (timeoutMs < MQTT_CLIENT_TIMEOUT_MS_MIN || timeoutMs > MQTT_CLIENT_TIMEOUT_MS_MAX) {
+        timeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
+    }
+    return timeoutMs;
+}
+} // namespace
+
 MqttClient::MqttClient(GlobalSettings *settings) {
     this->settings = settings;
 
@@ -19,6 +31,7 @@ MqttClient::MqttClient(GlobalSettings *settings) {
 
     lastReconnectTime = 0;
     lastCheckTime = 0;
+    reconnectBackoffMs = 0;
 }
 
 MqttClient::~MqttClient() {
@@ -60,10 +73,15 @@ void MqttClient::checkConnection() {
     if ((lastCheckTime == 0)
         || ((millis() - lastCheckTime) > 100)) {
         lastCheckTime = millis();
-        if ((!client->connected()) &&
-            ((millis() - lastReconnectTime > settings->mqttReconnectIntervalMs) || (lastReconnectTime == 0))) {
-            lastReconnectTime = millis();
-            reconnect();
+        if (!client->connected()) {
+            unsigned long intervalMs = static_cast<unsigned long>(settings->mqttReconnectIntervalMs);
+            if (reconnectBackoffMs > intervalMs) {
+                intervalMs = reconnectBackoffMs;
+            }
+            if ((lastReconnectTime == 0) || (millis() - lastReconnectTime > intervalMs)) {
+                lastReconnectTime = millis();
+                reconnect();
+            }
         }
     }
 }
@@ -127,31 +145,76 @@ void MqttClient::publishBootstrap() {
 }
 
 void MqttClient::reconnect() {
-    if (!client->connected()) {
-        LOGGER.info("Attempting MQTT connection...");
-        String clientId = String(settings->mqttDeviceName) + "/" + String(settings->mqttDeviceName);
-        if (client->connect(clientId.c_str())) {
-            LOGGER.info("   MQTT connected.");
+    if (client->connected()) {
+        return;
+    }
 
-            topicPumpState = String(settings->topicThePumpState) + "/" + String(settings->mqttDeviceName);
-            topicPressure = String(settings->topicPressureValue) + "/" + String(settings->mqttDeviceName);
-            topicCommands = String(settings->topicToListenCommands) + "/" + String(settings->mqttDeviceName);
-            topicDeviceEnabled =
-                    String(settings->topicIsTheDeviceEnabled) + "/" + String(settings->mqttDeviceName);
+    LOGGER.info("Attempting MQTT connection...");
+    String clientId = String(settings->mqttDeviceName) + "/" + String(settings->mqttDeviceName);
 
-            publishBootstrap();
+    const int timeoutMs = clampedClientTimeoutMs(settings);
+    // PubSubClient socket timeout is seconds; keep at least 1s for MQTT handshake/reads.
+    const uint16_t socketTimeoutSec =
+            static_cast<uint16_t>((timeoutMs + 999) / 1000);
+    client->setSocketTimeout(socketTimeoutSec < 1 ? 1 : socketTimeoutSec);
 
-            LOGGER.info("       Subscribing to '" + topicCommands + "' ...");
-            LOGGER.info(client->subscribe(topicCommands.c_str())
-                        ? "         subscribed."
-                        : "         NOT subscribed.");
+    // ESP32 WiFiClient::setTimeout() is seconds-granularity; use connect(..., timeoutMs)
+    // so a missing broker cannot stall the UI beyond mqttClientTimeoutMs.
+    if (!espClient->connected()) {
+        espClient->stop();
+        if (!espClient->connect(server.c_str(), static_cast<uint16_t>(port), timeoutMs)) {
+            LOGGER.error("MQTT TCP connect failed");
+            unsigned long base = static_cast<unsigned long>(settings->mqttReconnectIntervalMs);
+            if (base < 1) {
+                base = 1;
+            }
+            if (reconnectBackoffMs == 0) {
+                reconnectBackoffMs = base;
+            } else {
+                reconnectBackoffMs = reconnectBackoffMs * 2UL;
+            }
+            if (reconnectBackoffMs > MQTT_RECONNECT_BACKOFF_MAX_MS) {
+                reconnectBackoffMs = MQTT_RECONNECT_BACKOFF_MAX_MS;
+            }
+            return;
+        }
+    }
 
-            LOGGER.info("       Subscribing to '" + String(settings->topicToListenServerWasBorn) + "' ...");
-            LOGGER.info(client->subscribe(settings->topicToListenServerWasBorn)
-                        ? "         subscribed."
-                        : "         NOT subscribed.");
+    if (client->connect(clientId.c_str())) {
+        LOGGER.info("   MQTT connected.");
+        reconnectBackoffMs = 0;
+
+        topicPumpState = String(settings->topicThePumpState) + "/" + String(settings->mqttDeviceName);
+        topicPressure = String(settings->topicPressureValue) + "/" + String(settings->mqttDeviceName);
+        topicCommands = String(settings->topicToListenCommands) + "/" + String(settings->mqttDeviceName);
+        topicDeviceEnabled =
+                String(settings->topicIsTheDeviceEnabled) + "/" + String(settings->mqttDeviceName);
+
+        publishBootstrap();
+
+        LOGGER.info("       Subscribing to '" + topicCommands + "' ...");
+        LOGGER.info(client->subscribe(topicCommands.c_str())
+                    ? "         subscribed."
+                    : "         NOT subscribed.");
+
+        LOGGER.info("       Subscribing to '" + String(settings->topicToListenServerWasBorn) + "' ...");
+        LOGGER.info(client->subscribe(settings->topicToListenServerWasBorn)
+                    ? "         subscribed."
+                    : "         NOT subscribed.");
+    } else {
+        LOGGER.error("connection failed, state=" + String(client->state()));
+        espClient->stop();
+        unsigned long base = static_cast<unsigned long>(settings->mqttReconnectIntervalMs);
+        if (base < 1) {
+            base = 1;
+        }
+        if (reconnectBackoffMs == 0) {
+            reconnectBackoffMs = base;
         } else {
-            LOGGER.error("connection failed, state=" + String(client->state()));
+            reconnectBackoffMs = reconnectBackoffMs * 2UL;
+        }
+        if (reconnectBackoffMs > MQTT_RECONNECT_BACKOFF_MAX_MS) {
+            reconnectBackoffMs = MQTT_RECONNECT_BACKOFF_MAX_MS;
         }
     }
 }

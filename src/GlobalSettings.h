@@ -1,16 +1,11 @@
-#ifndef EFLAME328_GLOBALSETTINGS_H
-#define EFLAME328_GLOBALSETTINGS_H
-
-#include <Arduino.h>
+#ifndef GLOBALSETTINGS_H
+#define GLOBALSETTINGS_H
 
 #define GLOBAL_CURRENT_SETTINGS_VERSION 5
-#define GLOBAL_SETTINGS_MARKER_0 0x30
+#define GLOBAL_SETTINGS_MARKER_0 0x35
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
 #define GLOBAL_SETTINGS_MARKER_3 0x37
-
-#define MAX_PROFILE_COUNTER 10
-#define SYSTEM_PROFILE_COUNTER 5
 
 constexpr float PRESSURE_ATM_MPA = 0.100f; // 1 Atm = 0.1 MPa (display conversion only)
 constexpr float PRESSURE_SENSOR_MAX_DEFAULT_MPA = 0.500f;
@@ -28,11 +23,11 @@ constexpr float SENSOR_VOLT_MAX_DEFAULT = 4.85f;
 
 constexpr int SAMPLES_COUNT_MIN = 5;
 constexpr int SAMPLES_COUNT_MAX = 120;
-constexpr int SAMPLES_COUNT_DEFAULT = 40;
+constexpr int SAMPLES_COUNT_DEFAULT = 60;
 
 constexpr int MEASURE_INTERVAL_MS_MIN = 20;
 constexpr int MEASURE_INTERVAL_MS_MAX = 1000;
-constexpr int MEASURE_INTERVAL_MS_DEFAULT = 70;
+constexpr int MEASURE_INTERVAL_MS_DEFAULT = 50;
 
 constexpr int MEASUREMENTS_COUNT_MIN = 1;
 constexpr int MEASUREMENTS_COUNT_MAX = 16;
@@ -50,6 +45,10 @@ constexpr float MQTT_PRESSURE_UPDATE_DIFF_DEFAULT_ATM = 0.05f;
 constexpr int MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN = 5;
 constexpr int MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX = 120;
 constexpr int MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT = 10;
+
+constexpr int MQTT_CLIENT_TIMEOUT_MS_MIN = 50;
+constexpr int MQTT_CLIENT_TIMEOUT_MS_MAX = 1500;
+constexpr int MQTT_CLIENT_TIMEOUT_MS_DEFAULT = 200;
 
 struct NetworkSettings {
     /**
@@ -187,6 +186,11 @@ struct GlobalSettings {
      * Default ON.
      */
     bool mqttEnabled = true;
+
+    /**
+     * TCP connect timeout for MQTT broker (ms). Appended; no schema version bump.
+     */
+    int mqttClientTimeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
 };
 
-#endif //EFLAME328_SETTINGS_H
+#endif
