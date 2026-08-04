@@ -38,6 +38,8 @@ SettingsManager::SettingsManager(){
             settings.pressure.samplesCount = SAMPLES_COUNT_DEFAULT;
             settings.pressure.measureIntervalMs = MEASURE_INTERVAL_MS_DEFAULT;
             settings.pressure.measurementsCount = MEASUREMENTS_COUNT_DEFAULT;
+            // v4 -> v5: NetworkSettings gained wifiEnabled.
+            settings.network.wifiEnabled = false;
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
@@ -50,6 +52,7 @@ SettingsManager::SettingsManager(){
         clampPressureUpdateDiff(settings.pressureUpdateDiffAtm);
         clampMqttPublishMinInterval(settings.pressurePubMinIntSec);
         clampMqttPublishMinInterval(settings.pumpStatePubMinIntSec);
+        clampMqttClientTimeout(settings.mqttClientTimeoutMs);
         {
             uint8_t raw = 0;
             memcpy(&raw, &settings.displayRotate180, sizeof(raw));
@@ -80,6 +83,7 @@ void SettingsManager::applyDefaults() {
 
     resetWiFi();
     settings.network.enableOtaOnNetwork = false;
+    settings.network.wifiEnabled = false;
 
     settings.mqttPort = 1883;
     String(DEFAULT_MQTT_SERVER).toCharArray(settings.mqttServer, sizeof(settings.mqttServer));
@@ -110,6 +114,7 @@ void SettingsManager::applyDefaults() {
     settings.pumpStatePubMinIntSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
     settings.displayRotate180 = false;
     settings.mqttEnabled = true;
+    settings.mqttClientTimeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
 
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
@@ -129,6 +134,14 @@ void SettingsManager::clampMqttPublishMinInterval(int &intervalSec) {
     if (intervalSec < MQTT_PUBLISH_MIN_INTERVAL_SEC_MIN ||
         intervalSec > MQTT_PUBLISH_MIN_INTERVAL_SEC_MAX) {
         intervalSec = MQTT_PUBLISH_MIN_INTERVAL_SEC_DEFAULT;
+    }
+}
+//--------------------------------------------------------------------
+
+void SettingsManager::clampMqttClientTimeout(int &timeoutMs) {
+    if (timeoutMs < MQTT_CLIENT_TIMEOUT_MS_MIN ||
+        timeoutMs > MQTT_CLIENT_TIMEOUT_MS_MAX) {
+        timeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
     }
 }
 //--------------------------------------------------------------------
@@ -326,11 +339,13 @@ void SettingsManager::logSettings() {
     LOGGER.info("      password: " + String(settings.network.password));
     LOGGER.info("      host: " + String(settings.network.hostName));
     LOGGER.info("      enableOtaOnNetwork: " + String(settings.network.enableOtaOnNetwork ? "true" : "false"));
+    LOGGER.info("      wifiEnabled: " + String(settings.network.wifiEnabled ? "true" : "false"));
     LOGGER.info("   mqtt:");
     LOGGER.info("      enabled: " + String(settings.mqttEnabled ? "true" : "false"));
     LOGGER.info("      server: " + String(settings.mqttServer));
     LOGGER.info("      port: " + String(settings.mqttPort));
     LOGGER.info("      reconIntervalMs: " + String(settings.mqttReconnectIntervalMs));
+    LOGGER.info("      clientTimeoutMs: " + String(settings.mqttClientTimeoutMs));
     LOGGER.info("      device name: " + String(settings.mqttDeviceName));
     LOGGER.info("      The name of the topic to report that the device is alive:   " + String(settings.topicTheDeviceIsAlive));
     LOGGER.info("      The name of topic to report the pump state:                 " + String(settings.topicThePumpState) + "/" + String(settings.mqttDeviceName));

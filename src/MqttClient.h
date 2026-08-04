@@ -22,6 +22,7 @@ private:
     GlobalSettings *settings;
     long lastReconnectTime;
     long lastCheckTime;
+    unsigned long reconnectBackoffMs = 0;
 
     PumpControlFn pumpControlHandler = nullptr;
 

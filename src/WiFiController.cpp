@@ -170,8 +170,16 @@ void WiFiController::update() {
         LOGGER.warning("AP 5-minute timeout expired");
         const String deviceName = String(settingsManager->getSettings()->mqttDeviceName);
         stopAp();
-        startSta(deviceName);
-        LOGGER.info("IP " + (WiFi.isConnected() ? WiFi.localIP().toString() : String("0.0.0.0")));
+        if (staEnabledAtBoot) {
+            startSta(deviceName);
+            LOGGER.info("IP " + (WiFi.isConnected() ? WiFi.localIP().toString() : String("0.0.0.0")));
+        } else {
+            LOGGER.info("STA disabled; leaving WiFi off after AP timeout");
+        }
+        return;
+    }
+
+    if (!staEnabledAtBoot) {
         return;
     }
 
@@ -202,18 +210,32 @@ void WiFiController::update() {
 void WiFiController::init() {
     GlobalSettings *settings = settingsManager->getSettings();
     String deviceName = String(settings->mqttDeviceName);
+    staEnabledAtBoot = settings->network.wifiEnabled;
 
     LOGGER.info("Configuring WiFi...");
+    LOGGER.info("wifiEnabled (STA): " + String(staEnabledAtBoot ? "true" : "false"));
 
     if (forceAp) {
         startAp(deviceName);
-    } else {
+    } else if (staEnabledAtBoot) {
         startSta(deviceName);
+    } else {
+        WiFi.persistent(false);
+        WiFi.disconnect(true, true);
+        WiFi.mode(WIFI_OFF);
+        LOGGER.info("STA disabled; WiFi off");
     }
 
     LOGGER.info("IP " + (isApMode() ? WiFi.softAPIP() : WiFi.localIP()).toString());
     LOGGER.info("MAC " + WiFi.macAddress());
     LOGGER.info("WiFi current state: " + String(WiFi.getMode()));
 
-    serverController = new WebServerController(settingsManager);
+    // AsyncWebServer::begin() needs a live lwIP stack. With WIFI_OFF that asserts
+    // (tcpip_api_call Invalid mbox). Only start the web UI when AP or STA is up.
+    if (forceAp || staEnabledAtBoot) {
+        serverController = new WebServerController(settingsManager);
+    } else {
+        serverController = nullptr;
+        LOGGER.info("Web server skipped (WiFi STA disabled)");
+    }
 }

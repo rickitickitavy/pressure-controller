@@ -20,6 +20,7 @@ enum class SettingsFocus : uint8_t {
     SamplesCount,
     MeasureIntervalMs,
     MeasurementsCount,
+    WifiEnabled,
     Save,
     Cancel,
     Count,
@@ -39,6 +40,7 @@ struct UiState {
     int8_t wifiRssiPercent = -1; // 0–100 when STA/AP connected; -1 = hidden
     char macAddress[18] = {}; // "AA:BB:CC:DD:EE:FF"; used in AP mode
     PressureSettings draft{};
+    bool draftWifiEnabled = false;
     SettingsFocus focus = SettingsFocus::Leak;
 };
 

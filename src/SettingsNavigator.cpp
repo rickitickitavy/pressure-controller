@@ -40,6 +40,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            1,
                                                                            (void *) &settings->network.enableOtaOnNetwork,
                                                                            (void *) &settings->network.enableOtaOnNetwork);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("network>wifiEnabled", BOOLEAN, 0,
+                                                                           1,
+                                                                           (void *) &settings->network.wifiEnabled,
+                                                                           (void *) &settings->network.wifiEnabled);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>server", STRING, 5,
                                                                            63,
@@ -55,6 +59,11 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>reconnectIntervalMs", INTEGER, 30, 60000,
                                                                            (void *) &settings->mqttReconnectIntervalMs,
                                                                            (void *) &settings->mqttReconnectIntervalMs);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>mqttClientTimeoutMs", INTEGER,
+                                                                           MQTT_CLIENT_TIMEOUT_MS_MIN,
+                                                                           MQTT_CLIENT_TIMEOUT_MS_MAX,
+                                                                           (void *) &settings->mqttClientTimeoutMs,
+                                                                           (void *) &settings->mqttClientTimeoutMs);
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>deviceName", STRING, 2,
                                                                            31,
                                                                            (void *) &settings->mqttDeviceName[0],

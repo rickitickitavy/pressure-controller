@@ -27,6 +27,7 @@ namespace {
     UiMode gMode = UiMode::Run;
     PressureSettings gSettings;
     PressureSettings gDraft;
+    bool gDraftWifiEnabled = false;
     SettingsFocus gFocus = SettingsFocus::Leak;
     bool gPumpOn = false;
     bool gThresholdsDirty = false;
@@ -135,6 +136,7 @@ namespace {
             gThresholdsDirty = false;
         }
         gDraft = gSettings;
+        gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
         gFocus = SettingsFocus::Leak;
         gMode = UiMode::Settings;
         gLastActivityMs = millis();
@@ -159,12 +161,21 @@ namespace {
         PRESSURE.setMeasureIntervalMs(gSettings.measureIntervalMs);
         PRESSURE.setMeasurementsCount(gSettings.measurementsCount);
         gDraft = gSettings;
+
+        GlobalSettings *all = settingsManager->getSettings();
+        const bool wifiChanged = gDraftWifiEnabled != all->network.wifiEnabled;
+        if (wifiChanged) {
+            all->network.wifiEnabled = gDraftWifiEnabled;
+            settingsManager->saveSetting(true);
+        }
+
         gMode = UiMode::Run;
         gLastActivityMs = millis();
     }
 
     void applySettingsCancel() {
         gDraft = gSettings;
+        gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
         gMode = UiMode::Run;
         gLastActivityMs = millis();
     }
@@ -260,6 +271,10 @@ namespace {
                 gDraft.measurementsCount = v;
                 break;
             }
+            case SettingsFocus::WifiEnabled:
+                // Any encoder step toggles ON/OFF.
+                gDraftWifiEnabled = !gDraftWifiEnabled;
+                break;
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
             case SettingsFocus::Count:
@@ -367,12 +382,6 @@ namespace {
             }
         } else if (gMode == UiMode::Settings) {
             if ((millis() - gLastActivityMs) >= kSettingsIdleMs) {
-                // #region agent log
-                Serial.printf(
-                    "{\"sessionId\":\"2ce4f1\",\"hypothesisId\":\"S\",\"location\":\"main.cpp:timeout\","
-                    "\"message\":\"settings_idle_cancel\",\"timestamp\":%lu,\"runId\":\"settings-ui\"}\n",
-                    static_cast<unsigned long>(millis()));
-                // #endregion
                 applySettingsCancel();
             }
         }
@@ -449,6 +458,7 @@ void setup() {
 
     gSettings = settingsManager->getSettings()->pressure;
     gDraft = gSettings;
+    gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
     PRESSURE.setSensorMaxMpa(gSettings.sensorMaxMpa);
     PRESSURE.setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
     PRESSURE.setSamplesCount(gSettings.samplesCount);
@@ -579,6 +589,7 @@ void loop() {
             WiFi.macAddress().toCharArray(ui.macAddress, sizeof(ui.macAddress));
         }
         ui.draft = gDraft;
+        ui.draftWifiEnabled = gDraftWifiEnabled;
         ui.focus = gFocus;
 
         if (wifiReconnected) {
