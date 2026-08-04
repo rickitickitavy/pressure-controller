@@ -40,6 +40,10 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            1,
                                                                            (void *) &settings->network.enableOtaOnNetwork,
                                                                            (void *) &settings->network.enableOtaOnNetwork);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("network>wifiEnabled", BOOLEAN, 0,
+                                                                           1,
+                                                                           (void *) &settings->network.wifiEnabled,
+                                                                           (void *) &settings->network.wifiEnabled);
 
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>server", STRING, 5,
                                                                            63,

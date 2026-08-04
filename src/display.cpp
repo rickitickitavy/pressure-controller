@@ -33,21 +33,30 @@ namespace {
     constexpr int kHMin = 62;
 
     constexpr uint16_t kDarkGreen = 0x0400;
+    constexpr uint16_t kDarkRed = 0x8000;
     constexpr uint16_t kPumpOffGray = 0x8410;
     constexpr int kPumpIconW = 112;
     constexpr int kPumpIconH = 78;
     // Top of pump band → icon y=159 (12px above previous centered y=171).
     constexpr int kPumpIconPadY = 1;
 
-    // Settings screen: 10 equal rows.
-    constexpr int kSettingsRowH = TFT_HEIGHT / 10;
+    // Settings screen: 11 rows covering full height (no leftover strip / no fillScreen).
+    constexpr int kSettingsRowCount = static_cast<int>(SettingsFocus::Count);
 
     static_assert(kYMax + kHMax + 5 == kYMac, "5px gap max/mac");
     static_assert(kYMac + kHMac == kYCurrent, "gap mac/current");
     static_assert(kYCurrent + kHCurrent == kYPump, "gap current/pump");
     static_assert(kYPump + kHPump == kYMin, "gap pump/min");
     static_assert(kYMin + kHMin == TFT_HEIGHT, "min must reach bottom");
-    static_assert(kSettingsRowH * 10 <= TFT_HEIGHT, "settings rows must fit height");
+    static_assert(kSettingsRowCount == 11, "settings focus enum drives row count");
+
+    int settingsRowY(int index) {
+        return (index * TFT_HEIGHT) / kSettingsRowCount;
+    }
+
+    int settingsRowH(int index) {
+        return settingsRowY(index + 1) - settingsRowY(index);
+    }
 
     const int16_t pump_x[] = {32, 47, 22, 89, 98, 11, 0, 38};
     const int16_t pump_w[] = {40, 10, 66, 8, 14, 10, 10, 50};
@@ -282,45 +291,129 @@ namespace {
         drawBar(kYMin, kHMin, buf, fg, bg, &FreeSansBold24pt7b);
     }
 
-    void drawSettingsRow(int index, const char *text, bool selected) {
-        const int y = index * kSettingsRowH;
-        const uint16_t fg = selected ? ST77XX_BLACK : ST77XX_WHITE;
-        const uint16_t bg = selected ? ST77XX_YELLOW : ST77XX_BLACK;
-        drawBar(y, kSettingsRowH, text, fg, bg, &FreeSansBold12pt7b);
-    }
-
-    void drawSettings(const UiState &state) {
-        char buf[40];
-        snprintf(buf, sizeof(buf), "LEAK %us", state.draft.leakDetectSec);
-        drawSettingsRow(0, buf, state.focus == SettingsFocus::Leak);
-
-        snprintf(buf, sizeof(buf), "WEAK %us", state.draft.pumpWeakSec);
-        drawSettingsRow(1, buf, state.focus == SettingsFocus::Weak);
-
-        snprintf(buf, sizeof(buf), "SENS %.1f", toAtm(state.draft.sensorMaxMpa));
-        drawSettingsRow(2, buf, state.focus == SettingsFocus::SensorMax);
-
-        snprintf(buf, sizeof(buf), "VMIN %.3f", state.draft.sensorMinVolts);
-        drawSettingsRow(3, buf, state.focus == SettingsFocus::SensorMinVolts);
-
-        snprintf(buf, sizeof(buf), "VMAX %.3f", state.draft.sensorMaxVolts);
-        drawSettingsRow(4, buf, state.focus == SettingsFocus::SensorMaxVolts);
-
-        snprintf(buf, sizeof(buf), "SAMP %d", state.draft.samplesCount);
-        drawSettingsRow(5, buf, state.focus == SettingsFocus::SamplesCount);
-
-        snprintf(buf, sizeof(buf), "INTV %d", state.draft.measureIntervalMs);
-        drawSettingsRow(6, buf, state.focus == SettingsFocus::MeasureIntervalMs);
-
-        snprintf(buf, sizeof(buf), "MCNT %d", state.draft.measurementsCount);
-        drawSettingsRow(7, buf, state.focus == SettingsFocus::MeasurementsCount);
-
-        drawSettingsRow(8, "SAVE", state.focus == SettingsFocus::Save);
-        drawSettingsRow(9, "CANCEL", state.focus == SettingsFocus::Cancel);
-    }
-
     bool nearlyEq(float a, float b, float eps) {
         return fabsf(a - b) < eps;
+    }
+
+    void drawSettingsRow(int index, const char *text, bool selected,
+                         uint16_t idleBg = ST77XX_BLACK) {
+        const int y = settingsRowY(index);
+        const int h = settingsRowH(index);
+        const uint16_t fg = selected ? ST77XX_BLACK : ST77XX_WHITE;
+        const uint16_t bg = selected ? ST77XX_YELLOW : idleBg;
+        drawBar(y, h, text, fg, bg, &FreeSansBold12pt7b);
+    }
+
+    void formatSettingsRow(const UiState &state, SettingsFocus focus, char *buf, size_t bufSize,
+                           uint16_t *idleBgOut) {
+        *idleBgOut = ST77XX_BLACK;
+        switch (focus) {
+            case SettingsFocus::Leak:
+                snprintf(buf, bufSize, "LEAK %us", state.draft.leakDetectSec);
+                break;
+            case SettingsFocus::Weak:
+                snprintf(buf, bufSize, "WEAK %us", state.draft.pumpWeakSec);
+                break;
+            case SettingsFocus::SensorMax:
+                snprintf(buf, bufSize, "SENS %.1f", toAtm(state.draft.sensorMaxMpa));
+                break;
+            case SettingsFocus::SensorMinVolts:
+                snprintf(buf, bufSize, "VMIN %.3f", state.draft.sensorMinVolts);
+                break;
+            case SettingsFocus::SensorMaxVolts:
+                snprintf(buf, bufSize, "VMAX %.3f", state.draft.sensorMaxVolts);
+                break;
+            case SettingsFocus::SamplesCount:
+                snprintf(buf, bufSize, "SAMP %d", state.draft.samplesCount);
+                break;
+            case SettingsFocus::MeasureIntervalMs:
+                snprintf(buf, bufSize, "INTV %d", state.draft.measureIntervalMs);
+                break;
+            case SettingsFocus::MeasurementsCount:
+                snprintf(buf, bufSize, "MCNT %d", state.draft.measurementsCount);
+                break;
+            case SettingsFocus::WifiEnabled:
+                snprintf(buf, bufSize, "WIFI %s", state.draftWifiEnabled ? "ON" : "OFF");
+                break;
+            case SettingsFocus::Save:
+                snprintf(buf, bufSize, "SAVE");
+                *idleBgOut = kDarkGreen;
+                break;
+            case SettingsFocus::Cancel:
+                snprintf(buf, bufSize, "CANCEL");
+                *idleBgOut = kDarkRed;
+                break;
+            case SettingsFocus::Count:
+                buf[0] = '\0';
+                break;
+        }
+    }
+
+    void paintSettingsRow(const UiState &state, SettingsFocus focus) {
+        if (focus >= SettingsFocus::Count) {
+            return;
+        }
+        char buf[40];
+        uint16_t idleBg = ST77XX_BLACK;
+        formatSettingsRow(state, focus, buf, sizeof(buf), &idleBg);
+        drawSettingsRow(static_cast<int>(focus), buf, state.focus == focus, idleBg);
+    }
+
+    void drawAllSettingsRows(const UiState &state) {
+        for (uint8_t i = 0; i < static_cast<uint8_t>(SettingsFocus::Count); ++i) {
+            paintSettingsRow(state, static_cast<SettingsFocus>(i));
+        }
+    }
+
+    bool settingsRowValueChanged(const UiState &prev, const UiState &cur, SettingsFocus focus) {
+        switch (focus) {
+            case SettingsFocus::Leak:
+                return prev.draft.leakDetectSec != cur.draft.leakDetectSec;
+            case SettingsFocus::Weak:
+                return prev.draft.pumpWeakSec != cur.draft.pumpWeakSec;
+            case SettingsFocus::SensorMax:
+                return !nearlyEq(prev.draft.sensorMaxMpa, cur.draft.sensorMaxMpa, 0.001f);
+            case SettingsFocus::SensorMinVolts:
+                return !nearlyEq(prev.draft.sensorMinVolts, cur.draft.sensorMinVolts, 0.001f);
+            case SettingsFocus::SensorMaxVolts:
+                return !nearlyEq(prev.draft.sensorMaxVolts, cur.draft.sensorMaxVolts, 0.001f);
+            case SettingsFocus::SamplesCount:
+                return prev.draft.samplesCount != cur.draft.samplesCount;
+            case SettingsFocus::MeasureIntervalMs:
+                return prev.draft.measureIntervalMs != cur.draft.measureIntervalMs;
+            case SettingsFocus::MeasurementsCount:
+                return prev.draft.measurementsCount != cur.draft.measurementsCount;
+            case SettingsFocus::WifiEnabled:
+                return prev.draftWifiEnabled != cur.draftWifiEnabled;
+            case SettingsFocus::Save:
+            case SettingsFocus::Cancel:
+            case SettingsFocus::Count:
+                return false;
+        }
+        return false;
+    }
+
+    void drawSettingsIncremental(const UiState &prev, const UiState &cur, bool first) {
+        if (first) {
+            drawAllSettingsRows(cur);
+            return;
+        }
+        if (prev.focus != cur.focus) {
+            paintSettingsRow(cur, prev.focus);
+            paintSettingsRow(cur, cur.focus);
+        }
+        for (uint8_t i = 0; i < static_cast<uint8_t>(SettingsFocus::Count); ++i) {
+            const auto focus = static_cast<SettingsFocus>(i);
+            if (focus == prev.focus || focus == cur.focus) {
+                continue;
+            }
+            if (settingsRowValueChanged(prev, cur, focus)) {
+                paintSettingsRow(cur, focus);
+            }
+        }
+        if (prev.focus == cur.focus && settingsRowValueChanged(prev, cur, cur.focus)) {
+            paintSettingsRow(cur, cur.focus);
+        }
     }
 
     bool draftChanged(const PressureSettings &a, const PressureSettings &b) {
@@ -351,26 +444,27 @@ namespace Display {
     void render(const UiState &state) {
         if (state.mode == UiMode::Settings) {
             if (!gSettingsLayout) {
-                tft.fillScreen(ST77XX_BLACK);
                 gSettingsLayout = true;
                 gHasLast = false;
             }
             const bool need =
                     !gHasLast || gLast.focus != state.focus || draftChanged(gLast.draft, state.draft) ||
-                    gLast.mode != state.mode;
+                    gLast.draftWifiEnabled != state.draftWifiEnabled || gLast.mode != state.mode;
             if (need) {
-                drawSettings(state);
+                drawSettingsIncremental(gLast, state, !gHasLast);
                 gLast = state;
                 gHasLast = true;
             }
             return;
         }
 
-        // Leaving settings layout
+        // Leaving settings: clear only uncovered strips, then run-mode bar painters.
+        // (Pump painter draws the icon only; MAX/MAC leave a 5px gap.)
         if (gSettingsLayout) {
-            tft.fillScreen(ST77XX_BLACK);
             gSettingsLayout = false;
             gHasLast = false;
+            tft.fillRect(0, kYMax + kHMax, TFT_WIDTH, kYMac - (kYMax + kHMax), ST77XX_BLACK);
+            tft.fillRect(0, kYPump, TFT_WIDTH, kHPump, ST77XX_BLACK);
         }
 
         const bool first = !gHasLast;

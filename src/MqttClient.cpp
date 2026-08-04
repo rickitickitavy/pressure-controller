@@ -181,7 +181,7 @@ void MqttClient::handleMessage(const String &topic, const String &payload) {
         String status = payload;
         status.trim();
         status.toLowerCase();
-            LOGGER.info("MQTT server was born");
+        LOGGER.info("MQTT server was born");
         if (status == "online") {
             LOGGER.info("MQTT server was born (online) — republishing state");
             forcePublishBootstrap = true;

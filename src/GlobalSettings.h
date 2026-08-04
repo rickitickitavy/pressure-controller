@@ -3,8 +3,8 @@
 
 #include <Arduino.h>
 
-#define GLOBAL_CURRENT_SETTINGS_VERSION 4
-#define GLOBAL_SETTINGS_MARKER_0 0x31
+#define GLOBAL_CURRENT_SETTINGS_VERSION 5
+#define GLOBAL_SETTINGS_MARKER_0 0x30
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
 #define GLOBAL_SETTINGS_MARKER_3 0x37
@@ -68,6 +68,12 @@ struct NetworkSettings {
      * AP mode always allows OTA regardless of this flag.
      */
     bool enableOtaOnNetwork = false;
+
+    /**
+     * When true, STA mode is started at boot (unless encoder-hold forces AP).
+     * Default OFF. Applied only at boot.
+     */
+    bool wifiEnabled = false;
 };
 
 struct PressureSettings {

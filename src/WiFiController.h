@@ -15,9 +15,10 @@ private:
     static constexpr unsigned long kStaReconnectMs = 10UL * 1000UL;
 
     SettingsManager* settingsManager;
-    WebServerController* serverController;
+    WebServerController* serverController = nullptr;
     bool forceAp;
     bool apActive = false;
+    bool staEnabledAtBoot = false;
     unsigned long apStartedMs = 0;
     unsigned long lastStaReconnectMs = 0;
     bool staWasConnected = false;

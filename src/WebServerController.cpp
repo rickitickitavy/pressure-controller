@@ -95,6 +95,12 @@ void WebServerController::settingsApiProcessor(AsyncWebServerRequest *request) {
                         enableOta == "1" || enableOta == "true" || enableOta == "yes" ||
                         enableOta == "on";
 
+                String wifiEnabled = request->arg("network>wifiEnabled");
+                wifiEnabled.toLowerCase();
+                networkSettings.wifiEnabled =
+                        wifiEnabled == "1" || wifiEnabled == "true" || wifiEnabled == "yes" ||
+                        wifiEnabled == "on";
+
                 request->send(200, TEXT_PLAN, OK_RESPONSE);
 
                 settingsManager->getNavigator()->saveNetworkSettingsAndRestart(&networkSettings);

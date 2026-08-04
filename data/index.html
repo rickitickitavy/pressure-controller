@@ -60,6 +60,7 @@
             var wiFiSsId = document.getElementById("wiFiSSID").value;
             var wiFiPassword = document.getElementById("wiFiPassword").value;
             var networkEnableOta = document.getElementById("networkEnableOta").checked ? "1" : "0";
+            var networkWifiEnabled = document.getElementById("networkWifiEnabled").checked ? "1" : "0";
             var mqttEnabled = document.getElementById("mqttEnabled").checked ? "1" : "0";
             var mqttServer = document.getElementById("mqttServer").value;
             var mqttPort = document.getElementById("mqttPort").value;
@@ -94,6 +95,7 @@
                     body: "operation=write&parameter=wifi&network>ssid=" + encodeURIComponent(wiFiSsId)
                         + "&network>password=" + encodeURIComponent(wiFiPassword)
                         + "&network>enableOtaOnNetwork=" + networkEnableOta
+                        + "&network>wifiEnabled=" + networkWifiEnabled
                 }).then(function (response) {
                     return response.text().then(function (text) {
                         if (!isSaveOk(response, text)) {
@@ -159,6 +161,10 @@
             var ota = document.getElementById("networkEnableOta");
             if (ota) {
                 ota.checked = ota.getAttribute("data-value") === "1";
+            }
+            var wifiEnabled = document.getElementById("networkWifiEnabled");
+            if (wifiEnabled) {
+                wifiEnabled.checked = wifiEnabled.getAttribute("data-value") === "1";
             }
             var leakEnabled = document.getElementById("pressureLeakEnabled");
             if (leakEnabled) {
@@ -285,6 +291,11 @@
                 <input id="wiFiPassword" type="password" autocomplete="off" value="%network>password%">
                 <button type="button" id="wiFiPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
             </div>
+        </div>
+
+        <div class="field field-check">
+            <input id="networkWifiEnabled" type="checkbox" data-value="%network>wifiEnabled%">
+            <label for="networkWifiEnabled">Wi‑Fi enabled (STA)</label>
         </div>
 
         <div class="field field-check">

@@ -38,6 +38,8 @@ SettingsManager::SettingsManager(){
             settings.pressure.samplesCount = SAMPLES_COUNT_DEFAULT;
             settings.pressure.measureIntervalMs = MEASURE_INTERVAL_MS_DEFAULT;
             settings.pressure.measurementsCount = MEASUREMENTS_COUNT_DEFAULT;
+            // v4 -> v5: NetworkSettings gained wifiEnabled.
+            settings.network.wifiEnabled = false;
 
             settings.version = GLOBAL_CURRENT_SETTINGS_VERSION;
             LOGGER.warning(" Upgrade settings finished");
@@ -80,6 +82,7 @@ void SettingsManager::applyDefaults() {
 
     resetWiFi();
     settings.network.enableOtaOnNetwork = false;
+    settings.network.wifiEnabled = false;
 
     settings.mqttPort = 1883;
     String(DEFAULT_MQTT_SERVER).toCharArray(settings.mqttServer, sizeof(settings.mqttServer));
@@ -326,6 +329,7 @@ void SettingsManager::logSettings() {
     LOGGER.info("      password: " + String(settings.network.password));
     LOGGER.info("      host: " + String(settings.network.hostName));
     LOGGER.info("      enableOtaOnNetwork: " + String(settings.network.enableOtaOnNetwork ? "true" : "false"));
+    LOGGER.info("      wifiEnabled: " + String(settings.network.wifiEnabled ? "true" : "false"));
     LOGGER.info("   mqtt:");
     LOGGER.info("      enabled: " + String(settings.mqttEnabled ? "true" : "false"));
     LOGGER.info("      server: " + String(settings.mqttServer));
