@@ -65,6 +65,8 @@
             var mqttServer = document.getElementById("mqttServer").value;
             var mqttPort = document.getElementById("mqttPort").value;
             var mqttDeviceName = document.getElementById("mqttDeviceName").value;
+            var mqttUsername = document.getElementById("mqttUsername").value;
+            var mqttPassword = document.getElementById("mqttPassword").value;
             var mqttReconnectIntervalMs = document.getElementById("mqttReconnectIntervalMs").value;
             var mqttClientTimeoutMs = document.getElementById("mqttClientTimeoutMs").value;
             var mqttTopicTheDeviceIsAlive = document.getElementById("mqttTopicTheDeviceIsAlive").value;
@@ -119,6 +121,8 @@
                 + "|mqtt>server=" + mqttServer
                 + "|mqtt>port=" + mqttPort
                 + "|mqtt>deviceName=" + mqttDeviceName
+                + "|mqtt>username=" + encodeURIComponent(mqttUsername)
+                + "|mqtt>password=" + encodeURIComponent(mqttPassword)
                 + "|mqtt>reconnectIntervalMs=" + mqttReconnectIntervalMs
                 + "|mqtt>mqttClientTimeoutMs=" + mqttClientTimeoutMs
                 + "|mqtt>topicTheDeviceIsAlive=" + mqttTopicTheDeviceIsAlive
@@ -246,9 +250,9 @@
             showTab(initial);
         }
 
-        function initPasswordToggle() {
-            var input = document.getElementById("wiFiPassword");
-            var toggle = document.getElementById("wiFiPasswordToggle");
+        function setupPasswordToggle(inputId, toggleId) {
+            var input = document.getElementById(inputId);
+            var toggle = document.getElementById(toggleId);
             if (!input || !toggle) {
                 return;
             }
@@ -263,7 +267,8 @@
         document.addEventListener("DOMContentLoaded", function () {
             initFormControls();
             initTabs();
-            initPasswordToggle();
+            setupPasswordToggle("wiFiPassword", "wiFiPasswordToggle");
+            setupPasswordToggle("mqttPassword", "mqttPasswordToggle");
         });
     </script>
 </head>
@@ -332,6 +337,20 @@
         <div class="field">
             <label for="mqttDeviceName">Unique device name</label>
             <input id="mqttDeviceName" type="text" autocomplete="off" value="%mqtt>deviceName%">
+        </div>
+
+        <div class="field">
+            <label for="mqttUsername">MQTT username</label>
+            <p class="field-hint">Leave empty for brokers without authentication</p>
+            <input id="mqttUsername" type="text" autocomplete="off" value="%mqtt>username%">
+        </div>
+
+        <div class="field">
+            <label for="mqttPassword">MQTT password</label>
+            <div class="password-row">
+                <input id="mqttPassword" type="password" autocomplete="off" value="%mqtt>password%">
+                <button type="button" id="mqttPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
+            </div>
         </div>
 
         <div class="field">

@@ -180,7 +180,12 @@ void MqttClient::reconnect() {
         }
     }
 
-    if (client->connect(clientId.c_str())) {
+    const bool connected = settings->mqttUsername[0] != '\0'
+            ? client->connect(clientId.c_str(),
+                            settings->mqttUsername,
+                            settings->mqttPassword)
+            : client->connect(clientId.c_str());
+    if (connected) {
         LOGGER.info("   MQTT connected.");
         reconnectBackoffMs = 0;
 
