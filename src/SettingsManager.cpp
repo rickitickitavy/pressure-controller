@@ -115,6 +115,8 @@ void SettingsManager::applyDefaults() {
     settings.displayRotate180 = false;
     settings.mqttEnabled = true;
     settings.mqttClientTimeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
+    settings.mqttUsername[0] = '\0';
+    settings.mqttPassword[0] = '\0';
 
     settings.pressure = PressureSettings{};
     clampAdvanced(settings.pressure);
@@ -347,6 +349,10 @@ void SettingsManager::logSettings() {
     LOGGER.info("      reconIntervalMs: " + String(settings.mqttReconnectIntervalMs));
     LOGGER.info("      clientTimeoutMs: " + String(settings.mqttClientTimeoutMs));
     LOGGER.info("      device name: " + String(settings.mqttDeviceName));
+    if (settings.mqttUsername[0] != '\0') {
+        LOGGER.info("      username: " + String(settings.mqttUsername));
+        LOGGER.info("      password: (set)");
+    }
     LOGGER.info("      The name of the topic to report that the device is alive:   " + String(settings.topicTheDeviceIsAlive));
     LOGGER.info("      The name of topic to report the pump state:                 " + String(settings.topicThePumpState) + "/" + String(settings.mqttDeviceName));
     LOGGER.info("      The name of topic to report the pressure value:             " + String(settings.topicPressureValue) + "/" + String(settings.mqttDeviceName));

@@ -68,6 +68,14 @@ SettingsNavigator::SettingsNavigator(SettingsManager *settingsManager) {
                                                                            31,
                                                                            (void *) &settings->mqttDeviceName[0],
                                                                            (void *) &settings->mqttDeviceName[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>username", STRING, 0,
+                                                                           31,
+                                                                           (void *) &settings->mqttUsername[0],
+                                                                           (void *) &settings->mqttUsername[0]);
+    this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>password", STRING, 0,
+                                                                           63,
+                                                                           (void *) &settings->mqttPassword[0],
+                                                                           (void *) &settings->mqttPassword[0]);
     this->paramDescriptors[activeParamDescriptors++] = new ParamDescriptor("mqtt>topicTheDeviceIsAlive", STRING, 2,
                                                                            31,
                                                                            (void *) &settings->topicTheDeviceIsAlive[0],

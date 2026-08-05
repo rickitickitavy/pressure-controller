@@ -2,7 +2,7 @@
 #define GLOBALSETTINGS_H
 
 #define GLOBAL_CURRENT_SETTINGS_VERSION 5
-#define GLOBAL_SETTINGS_MARKER_0 0x35
+#define GLOBAL_SETTINGS_MARKER_0 0x34
 #define GLOBAL_SETTINGS_MARKER_1 0x32
 #define GLOBAL_SETTINGS_MARKER_2 0x33
 #define GLOBAL_SETTINGS_MARKER_3 0x37
@@ -191,6 +191,16 @@ struct GlobalSettings {
      * TCP connect timeout for MQTT broker (ms). Appended; no schema version bump.
      */
     int mqttClientTimeoutMs = MQTT_CLIENT_TIMEOUT_MS_DEFAULT;
+
+    /**
+     * MQTT broker username (appended; no schema version bump). Empty = no auth.
+     */
+    char mqttUsername[32];
+
+    /**
+     * MQTT broker password (appended; no schema version bump).
+     */
+    char mqttPassword[64];
 };
 
 #endif
