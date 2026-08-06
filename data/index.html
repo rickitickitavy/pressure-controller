@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pump WiFi settings</title>
+    <title>Pump controller</title>
     <link rel="stylesheet" type="text/css" href="css/all.css"/>
     <script>
         function showSaveError(message) {
@@ -45,6 +45,17 @@
                 el.textContent = "";
                 el.hidden = true;
             }
+        }
+
+        function showStatusMessage(message, isError) {
+            var el = document.getElementById("statusMessage");
+            if (!el) {
+                return;
+            }
+            el.textContent = message || "";
+            el.hidden = !message;
+            el.classList.toggle("save-error", !!isError);
+            el.classList.toggle("save-success", !isError && !!message);
         }
 
         function isSaveOk(response, text) {
@@ -107,7 +118,6 @@
                         showSaveSuccess("Settings saved successfully");
                     });
                 }).catch(function (error) {
-                    // Device may restart after WiFi save; treat a dropped connection as success.
                     var msg = (error && error.message) ? String(error.message) : String(error);
                     if (/failed to fetch|networkerror|load failed/i.test(msg)) {
                         showSaveSuccess("Settings saved successfully");
@@ -186,9 +196,9 @@
             }
         }
 
-        function initTabs() {
-            var buttons = document.querySelectorAll(".tab-btn");
-            var panels = document.querySelectorAll(".tab-panel");
+        function initSettingsTabs() {
+            var buttons = document.querySelectorAll(".settings-tab-btn");
+            var panels = document.querySelectorAll(".settings-tab-panel");
             var storageKey = "settingsActiveTab";
             var sensorVoltageTimer = null;
             var sensorVoltageField = document.getElementById("pressureSensorCurrentVolts");
@@ -231,7 +241,8 @@
                 try {
                     sessionStorage.setItem(storageKey, name);
                 } catch (e) { /* ignore */ }
-                setSensorVoltagePolling(name === "sensor");
+                var settingsVisible = document.getElementById("section-settings").classList.contains("active");
+                setSensorVoltagePolling(settingsVisible && name === "sensor");
             }
 
             buttons.forEach(function (btn) {
@@ -248,6 +259,201 @@
                 }
             } catch (e) { /* ignore */ }
             showTab(initial);
+
+            return {
+                onSectionShown: function () {
+                    var activeBtn = document.querySelector(".settings-tab-btn.active");
+                    var name = activeBtn ? activeBtn.getAttribute("data-tab") : "wifi";
+                    setSensorVoltagePolling(name === "sensor");
+                },
+                onSectionHidden: function () {
+                    setSensorVoltagePolling(false);
+                }
+            };
+        }
+
+        function initMainNav(settingsTabsApi) {
+            var buttons = document.querySelectorAll(".sidebar-btn");
+            var sections = document.querySelectorAll(".section-panel");
+            var footer = document.getElementById("settings-footer");
+            var storageKey = "mainActiveSection";
+            var statusTimer = null;
+            var enabledPending = false;
+
+            function applyStatusData(data) {
+                var pressureEl = document.getElementById("statusPressure");
+                var pumpEl = document.getElementById("statusPump");
+                var versionEl = document.getElementById("statusVersion");
+                var enabledEl = document.getElementById("statusEnabled");
+                var ipEl = document.getElementById("statusIp");
+                var rssiEl = document.getElementById("statusRssi");
+                var mqttEl = document.getElementById("statusMqtt");
+                if (pressureEl) {
+                    pressureEl.textContent = Number(data.pressureAtm).toFixed(2) + " Atm";
+                }
+                if (pumpEl) {
+                    pumpEl.textContent = data.pumpOn ? "ON" : "OFF";
+                }
+                if (versionEl) {
+                    versionEl.textContent = data.firmwareVersion || "—";
+                }
+                if (ipEl) {
+                    ipEl.textContent = data.ip || "—";
+                }
+                if (rssiEl) {
+                    rssiEl.textContent = (typeof data.rssi === "number")
+                        ? (data.rssi + " dBm")
+                        : "—";
+                }
+                if (mqttEl) {
+                    mqttEl.textContent = data.mqttConnected ? "Connected" : "Disconnected";
+                }
+                if (enabledEl && !enabledPending) {
+                    enabledEl.checked = !!data.pumpControlEnabled;
+                }
+            }
+
+            function fetchStatus() {
+                fetch("/statusApi")
+                    .then(function (response) {
+                        if (!response.ok) {
+                            throw new Error("bad status");
+                        }
+                        return response.json();
+                    })
+                    .then(applyStatusData)
+                    .catch(function () { /* ignore transient errors */ });
+            }
+
+            function setStatusPolling(enabled) {
+                if (statusTimer !== null) {
+                    clearInterval(statusTimer);
+                    statusTimer = null;
+                }
+                if (enabled) {
+                    fetchStatus();
+                    statusTimer = setInterval(fetchStatus, 1000);
+                }
+            }
+
+            function showSection(name) {
+                buttons.forEach(function (btn) {
+                    btn.classList.toggle("active", btn.getAttribute("data-section") === name);
+                });
+                sections.forEach(function (section) {
+                    section.classList.toggle("active", section.id === "section-" + name);
+                });
+                if (footer) {
+                    footer.hidden = name !== "settings";
+                }
+                try {
+                    sessionStorage.setItem(storageKey, name);
+                } catch (e) { /* ignore */ }
+
+                setStatusPolling(name === "status");
+                if (name === "settings" && settingsTabsApi) {
+                    settingsTabsApi.onSectionShown();
+                } else if (settingsTabsApi) {
+                    settingsTabsApi.onSectionHidden();
+                }
+            }
+
+            buttons.forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    showSection(btn.getAttribute("data-section"));
+                });
+            });
+
+            var enabledEl = document.getElementById("statusEnabled");
+            if (enabledEl) {
+                enabledEl.addEventListener("change", function () {
+                    enabledPending = true;
+                    showStatusMessage("", false);
+                    var value = enabledEl.checked ? "1" : "0";
+                    // Query string avoids AsyncWebServer POST-body parsing quirks on small toggles.
+                    fetch("/statusApi?operation=write&enabled=" + value, {
+                        method: "POST"
+                    }).then(function (response) {
+                        return response.text().then(function (text) {
+                            if (!isSaveOk(response, text)) {
+                                throw new Error(text || response.statusText || ("HTTP " + response.status));
+                            }
+                            showStatusMessage("Enabled updated", false);
+                        });
+                    }).catch(function (error) {
+                        showStatusMessage((error && error.message) ? error.message : String(error), true);
+                        fetchStatus();
+                    }).finally(function () {
+                        enabledPending = false;
+                    });
+                });
+            }
+
+            var initial = "status";
+            try {
+                var saved = sessionStorage.getItem(storageKey);
+                if (saved && document.getElementById("section-" + saved)) {
+                    initial = saved;
+                }
+            } catch (e) { /* ignore */ }
+            showSection(initial);
+        }
+
+        function uploadFirmware(url, fileInputId, progressBarId, statusId) {
+            var fileInput = document.getElementById(fileInputId);
+            var progressBar = document.getElementById(progressBarId);
+            var statusEl = document.getElementById(statusId);
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                if (statusEl) {
+                    statusEl.textContent = "Select a .bin file first";
+                }
+                return;
+            }
+
+            var file = fileInput.files[0];
+            var formData = new FormData();
+            formData.append("firmware", file, file.name);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", url, true);
+            xhr.upload.onprogress = function (event) {
+                if (!progressBar) {
+                    return;
+                }
+                if (event.lengthComputable) {
+                    var pct = Math.round((event.loaded / event.total) * 100);
+                    progressBar.value = pct;
+                    progressBar.hidden = false;
+                }
+            };
+            xhr.onload = function () {
+                if (progressBar) {
+                    progressBar.hidden = true;
+                    progressBar.value = 0;
+                }
+                if (xhr.status === 200 && String(xhr.responseText || "").trim() === "OK") {
+                    if (statusEl) {
+                        statusEl.textContent = "Update complete. Rebooting…";
+                    }
+                    return;
+                }
+                if (statusEl) {
+                    statusEl.textContent = xhr.responseText || ("Upload failed (HTTP " + xhr.status + ")");
+                }
+            };
+            xhr.onerror = function () {
+                if (progressBar) {
+                    progressBar.hidden = true;
+                    progressBar.value = 0;
+                }
+                if (statusEl) {
+                    statusEl.textContent = "Upload failed (network error)";
+                }
+            };
+            if (statusEl) {
+                statusEl.textContent = "Uploading…";
+            }
+            xhr.send(formData);
         }
 
         function setupPasswordToggle(inputId, toggleId) {
@@ -266,244 +472,326 @@
 
         document.addEventListener("DOMContentLoaded", function () {
             initFormControls();
-            initTabs();
+            var settingsTabsApi = initSettingsTabs();
+            initMainNav(settingsTabsApi);
             setupPasswordToggle("wiFiPassword", "wiFiPasswordToggle");
             setupPasswordToggle("mqttPassword", "mqttPasswordToggle");
         });
     </script>
 </head>
 <body>
-<div class="page">
-    <h1 class="page-title">Pump settings</h1>
-    <div id="saveError" class="save-error" role="alert" hidden></div>
-    <div id="saveSuccess" class="save-success" role="status" hidden></div>
-
-    <nav class="tabs" role="tablist" aria-label="Settings groups">
-        <button type="button" class="tab-btn active" data-tab="wifi" role="tab">WiFi</button>
-        <button type="button" class="tab-btn" data-tab="display" role="tab">Display</button>
-        <button type="button" class="tab-btn" data-tab="mqtt" role="tab">MQTT</button>
-        <button type="button" class="tab-btn" data-tab="pressure" role="tab">Pressure</button>
-        <button type="button" class="tab-btn" data-tab="sensor" role="tab">Sensor settings</button>
+<div class="app-shell">
+    <nav class="sidebar-nav" role="navigation" aria-label="Main sections">
+        <h1 class="sidebar-title">Pump</h1>
+        <button type="button" class="sidebar-btn active" data-section="status">Status</button>
+        <button type="button" class="sidebar-btn" data-section="settings">Settings</button>
+        <button type="button" class="sidebar-btn" data-section="update">Update</button>
     </nav>
 
-    <div id="tab-wifi" class="tab-panel active" role="tabpanel">
-        <div class="field">
-            <label for="wiFiSSID">WiFi SSID</label>
-            <input id="wiFiSSID" type="text" autocomplete="off" value="%network>ssid%">
-        </div>
+    <div class="main-panel">
+        <section id="section-status" class="section-panel active" aria-label="Status">
+            <h2 class="section-title">Status</h2>
+            <div id="statusMessage" class="save-success" role="status" hidden></div>
 
-        <div class="field">
-            <label for="wiFiPassword">WiFi password</label>
-            <div class="password-row">
-                <input id="wiFiPassword" type="password" autocomplete="off" value="%network>password%">
-                <button type="button" id="wiFiPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
+            <div class="field">
+                <label>Current pressure</label>
+                <p id="statusPressure" class="status-value">—</p>
             </div>
-        </div>
 
-        <div class="field field-check">
-            <input id="networkWifiEnabled" type="checkbox" data-value="%network>wifiEnabled%">
-            <label for="networkWifiEnabled">Wi‑Fi enabled (STA)</label>
-        </div>
-
-        <div class="field field-check">
-            <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
-            <label for="networkEnableOta">Enable OTA updates over Wi‑Fi</label>
-        </div>
-    </div>
-
-    <div id="tab-display" class="tab-panel" role="tabpanel">
-        <div class="field field-check">
-            <input id="displayRotate180" type="checkbox" data-value="%display>rotate180%">
-            <label for="displayRotate180">Rotate screen 180&deg;</label>
-        </div>
-    </div>
-
-    <div id="tab-mqtt" class="tab-panel" role="tabpanel">
-        <div class="field field-check">
-            <input id="mqttEnabled" type="checkbox" data-value="%mqtt>mqttEnabled%">
-            <label for="mqttEnabled">MQTT enabled</label>
-        </div>
-
-        <div class="field">
-            <label for="mqttServer">MQTT server</label>
-            <input id="mqttServer" type="text" autocomplete="off" value="%mqtt>server%">
-        </div>
-
-        <div class="field">
-            <label for="mqttPort">MQTT port</label>
-            <input id="mqttPort" type="number" inputmode="numeric" value="%mqtt>port%">
-        </div>
-
-        <div class="field">
-            <label for="mqttDeviceName">Unique device name</label>
-            <input id="mqttDeviceName" type="text" autocomplete="off" value="%mqtt>deviceName%">
-        </div>
-
-        <div class="field">
-            <label for="mqttUsername">MQTT username</label>
-            <p class="field-hint">Leave empty for brokers without authentication</p>
-            <input id="mqttUsername" type="text" autocomplete="off" value="%mqtt>username%">
-        </div>
-
-        <div class="field">
-            <label for="mqttPassword">MQTT password</label>
-            <div class="password-row">
-                <input id="mqttPassword" type="password" autocomplete="off" value="%mqtt>password%">
-                <button type="button" id="mqttPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
+            <div class="field">
+                <label>Pump state</label>
+                <p id="statusPump" class="status-value">—</p>
             </div>
-        </div>
 
-        <div class="field">
-            <label for="mqttReconnectIntervalMs">Reconnect interval (ms)</label>
-            <input id="mqttReconnectIntervalMs" type="number" inputmode="numeric" value="%mqtt>reconnectIntervalMs%">
-        </div>
+            <div class="field field-check">
+                <input id="statusEnabled" type="checkbox">
+                <label for="statusEnabled">Pump control enabled</label>
+            </div>
 
-        <div class="field">
-            <label for="mqttClientTimeoutMs">MQTT connect timeout (ms)</label>
-            <p class="field-hint">TCP connect timeout when reaching the broker (50–1500)</p>
-            <input id="mqttClientTimeoutMs" type="number" inputmode="numeric"
-                   min="50" max="1500" step="1" value="%mqtt>mqttClientTimeoutMs%">
-        </div>
+            <div class="field">
+                <label>IP address</label>
+                <p id="statusIp" class="status-value">—</p>
+            </div>
 
-        <div class="field">
-            <label for="mqttTopicTheDeviceIsAlive">Alive topic</label>
-            <p class="field-hint">Topic used to report that the device is alive</p>
-            <input id="mqttTopicTheDeviceIsAlive" type="text" autocomplete="off" value="%mqtt>topicTheDeviceIsAlive%">
-        </div>
+            <div class="field">
+                <label>Wi‑Fi RSSI</label>
+                <p id="statusRssi" class="status-value">—</p>
+            </div>
 
-        <div class="field">
-            <label for="mqttTopicThePumpState">Pump state topic</label>
-            <p class="field-hint">Topic used to report the pump state</p>
-            <input id="mqttTopicThePumpState" type="text" autocomplete="off" value="%mqtt>topicThePumpState%">
-        </div>
+            <div class="field">
+                <label>MQTT</label>
+                <p id="statusMqtt" class="status-value">—</p>
+            </div>
 
-        <div class="field">
-            <label for="mqttTopicIsTheDeviceEnabled">Enabled topic</label>
-            <p class="field-hint">Topic used to report that the device is enabled</p>
-            <input id="mqttTopicIsTheDeviceEnabled" type="text" autocomplete="off" value="%mqtt>topicIsTheDeviceEnabled%">
-        </div>
+            <div class="field">
+                <label>Firmware version</label>
+                <p id="statusVersion" class="status-value">—</p>
+            </div>
+        </section>
 
-        <div class="field">
-            <label for="mqttTopicPressureValue">Pressure topic</label>
-            <p class="field-hint">Topic used to report the pressure value</p>
-            <input id="mqttTopicPressureValue" type="text" autocomplete="off" value="%mqtt>topicPressureValue%">
-        </div>
+        <section id="section-settings" class="section-panel" aria-label="Settings">
+            <h2 class="section-title">Settings</h2>
+            <div id="saveError" class="save-error" role="alert" hidden></div>
+            <div id="saveSuccess" class="save-success" role="status" hidden></div>
 
-        <div class="field">
-            <label for="mqttTopicToListenCommands">Commands topic</label>
-            <p class="field-hint">Topic used to listen for commands</p>
-            <input id="mqttTopicToListenCommands" type="text" autocomplete="off" value="%mqtt>topicToListenCommands%">
-        </div>
+            <nav class="tabs settings-tabs" role="tablist" aria-label="Settings groups">
+                <button type="button" class="settings-tab-btn tab-btn active" data-tab="wifi" role="tab">WiFi</button>
+                <button type="button" class="settings-tab-btn tab-btn" data-tab="display" role="tab">Display</button>
+                <button type="button" class="settings-tab-btn tab-btn" data-tab="mqtt" role="tab">MQTT</button>
+                <button type="button" class="settings-tab-btn tab-btn" data-tab="pressure" role="tab">Pressure</button>
+                <button type="button" class="settings-tab-btn tab-btn" data-tab="sensor" role="tab">Sensor</button>
+            </nav>
 
-        <div class="field">
-            <label for="mqttTopicToListenServerWasBorn">Server restart topic</label>
-            <p class="field-hint">Topic used when the server has restarted</p>
-            <input id="mqttTopicToListenServerWasBorn" type="text" autocomplete="off" value="%mqtt>topicToListenServerWasBorn%">
-        </div>
+            <div class="tab-content">
+            <div id="tab-wifi" class="settings-tab-panel tab-panel active" role="tabpanel">
+                <div class="field">
+                    <label for="wiFiSSID">WiFi SSID</label>
+                    <input id="wiFiSSID" type="text" autocomplete="off" value="%network>ssid%">
+                </div>
 
-        <div class="field">
-            <label for="mqttPressureUpdateDiffAtm">Update pressure difference (Atm)</label>
-            <input id="mqttPressureUpdateDiffAtm" type="number"
-                   min="0.01" max="0.5" step="0.01" value="%mqtt>pressureUpdateDiffAtm%">
-        </div>
+                <div class="field">
+                    <label for="wiFiPassword">WiFi password</label>
+                    <div class="password-row">
+                        <input id="wiFiPassword" type="password" autocomplete="off" value="%network>password%">
+                        <button type="button" id="wiFiPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
+                    </div>
+                </div>
 
-        <div class="field">
-            <label for="mqttPressurePubMinIntSec">Pressure publish min interval (sec)</label>
-            <input id="mqttPressurePubMinIntSec" type="number"
-                   min="5" max="120" step="1" value="%mqtt>pressurePubMinIntSec%">
-        </div>
+                <div class="field field-check">
+                    <input id="networkWifiEnabled" type="checkbox" data-value="%network>wifiEnabled%">
+                    <label for="networkWifiEnabled">Wi‑Fi enabled (STA)</label>
+                </div>
 
-        <div class="field">
-            <label for="mqttPumpStatePubMinIntSec">Pump state publish min interval (sec)</label>
-            <input id="mqttPumpStatePubMinIntSec" type="number"
-                   min="5" max="120" step="1" value="%mqtt>pumpStatePubMinIntSec%">
-        </div>
-    </div>
+                <div class="field field-check">
+                    <input id="networkEnableOta" type="checkbox" data-value="%network>enableOtaOnNetwork%">
+                    <label for="networkEnableOta">Enable OTA updates over Wi‑Fi</label>
+                </div>
+            </div>
 
-    <div id="tab-pressure" class="tab-panel" role="tabpanel">
-        <div class="field">
-            <label for="pressureMin">Min pressure (Atm)</label>
-            <input id="pressureMin" type="number" step="0.01"
-                   min="%pressure>minAtm#min%" max="%pressure>minAtm#max%" value="%pressure>minAtm%">
-        </div>
+            <div id="tab-display" class="settings-tab-panel tab-panel" role="tabpanel">
+                <div class="field field-check">
+                    <input id="displayRotate180" type="checkbox" data-value="%display>rotate180%">
+                    <label for="displayRotate180">Rotate screen 180&deg;</label>
+                </div>
+            </div>
 
-        <div class="field">
-            <label for="pressureMax">Max pressure (Atm)</label>
-            <input id="pressureMax" type="number" step="0.01"
-                   min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
-        </div>
+            <div id="tab-mqtt" class="settings-tab-panel tab-panel" role="tabpanel">
+                <div class="field field-check">
+                    <input id="mqttEnabled" type="checkbox" data-value="%mqtt>mqttEnabled%">
+                    <label for="mqttEnabled">MQTT enabled</label>
+                </div>
 
-        <div class="field field-check">
-            <input id="pressureLeakEnabled" type="checkbox" data-value="%pressure>leakDetectEnabled%">
-            <label for="pressureLeakEnabled">Leak detection enabled</label>
-        </div>
+                <div class="field">
+                    <label for="mqttServer">MQTT server</label>
+                    <input id="mqttServer" type="text" autocomplete="off" value="%mqtt>server%">
+                </div>
 
-        <div class="field">
-            <label for="pressureLeak">Leak timeout (s)</label>
-            <input id="pressureLeak" type="number" step="1"
-                   min="%pressure>leakDetectSec#min%" max="%pressure>leakDetectSec#max%"
-                   value="%pressure>leakDetectSec%">
-        </div>
+                <div class="field">
+                    <label for="mqttPort">MQTT port</label>
+                    <input id="mqttPort" type="number" inputmode="numeric" value="%mqtt>port%">
+                </div>
 
-        <div class="field">
-            <label for="pressureWeak">Weak pump timeout (s)</label>
-            <input id="pressureWeak" type="number" step="1"
-                   min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
-                   value="%pressure>pumpWeakSec%">
-        </div>
-    </div>
+                <div class="field">
+                    <label for="mqttDeviceName">Unique device name</label>
+                    <input id="mqttDeviceName" type="text" autocomplete="off" value="%mqtt>deviceName%">
+                </div>
 
-    <div id="tab-sensor" class="tab-panel" role="tabpanel">
-        <div class="field">
-            <label for="pressureSensorMax">Sensor full-scale (Atm)</label>
-            <input id="pressureSensorMax" type="number" step="0.1"
-                   min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
-                   value="%pressure>sensorMaxAtm%">
-        </div>
+                <div class="field">
+                    <label for="mqttUsername">MQTT username</label>
+                    <p class="field-hint">Leave empty for brokers without authentication</p>
+                    <input id="mqttUsername" type="text" autocomplete="off" value="%mqtt>username%">
+                </div>
 
-        <div class="field">
-            <label for="pressureSensorMinVolts">Sensor min (V)</label>
-            <input id="pressureSensorMinVolts" type="number" step="0.005"
-                   min="%pressure>sensorMinVolts#min%" max="%pressure>sensorMinVolts#max%"
-                   value="%pressure>sensorMinVolts%">
-        </div>
+                <div class="field">
+                    <label for="mqttPassword">MQTT password</label>
+                    <div class="password-row">
+                        <input id="mqttPassword" type="password" autocomplete="off" value="%mqtt>password%">
+                        <button type="button" id="mqttPasswordToggle" class="password-toggle" aria-label="Show password">Show</button>
+                    </div>
+                </div>
 
-        <div class="field">
-            <label for="pressureSensorMaxVolts">Sensor max (V)</label>
-            <input id="pressureSensorMaxVolts" type="number" step="0.005"
-                   min="%pressure>sensorMaxVolts#min%" max="%pressure>sensorMaxVolts#max%"
-                   value="%pressure>sensorMaxVolts%">
-        </div>
+                <div class="field">
+                    <label for="mqttReconnectIntervalMs">Reconnect interval (ms)</label>
+                    <input id="mqttReconnectIntervalMs" type="number" inputmode="numeric" value="%mqtt>reconnectIntervalMs%">
+                </div>
 
-        <div class="field">
-            <label for="pressureSamplesCount">Samples count</label>
-            <input id="pressureSamplesCount" type="number" step="1"
-                   min="%pressure>samplesCount#min%" max="%pressure>samplesCount#max%"
-                   value="%pressure>samplesCount%">
-        </div>
+                <div class="field">
+                    <label for="mqttClientTimeoutMs">MQTT connect timeout (ms)</label>
+                    <p class="field-hint">TCP connect timeout when reaching the broker (50–1500)</p>
+                    <input id="mqttClientTimeoutMs" type="number" inputmode="numeric"
+                           min="50" max="1500" step="1" value="%mqtt>mqttClientTimeoutMs%">
+                </div>
 
-        <div class="field">
-            <label for="pressureMeasureIntervalMs">Measure interval (ms)</label>
-            <input id="pressureMeasureIntervalMs" type="number" step="1"
-                   min="%pressure>measureIntervalMs#min%" max="%pressure>measureIntervalMs#max%"
-                   value="%pressure>measureIntervalMs%">
-        </div>
+                <div class="field">
+                    <label for="mqttTopicTheDeviceIsAlive">Alive topic</label>
+                    <p class="field-hint">Topic used to report that the device is alive</p>
+                    <input id="mqttTopicTheDeviceIsAlive" type="text" autocomplete="off" value="%mqtt>topicTheDeviceIsAlive%">
+                </div>
 
-        <div class="field">
-            <label for="pressureMeasurementsCount">Measurements count</label>
-            <input id="pressureMeasurementsCount" type="number" step="1"
-                   min="%pressure>measurementsCount#min%" max="%pressure>measurementsCount#max%"
-                   value="%pressure>measurementsCount%">
-        </div>
+                <div class="field">
+                    <label for="mqttTopicThePumpState">Pump state topic</label>
+                    <p class="field-hint">Topic used to report the pump state</p>
+                    <input id="mqttTopicThePumpState" type="text" autocomplete="off" value="%mqtt>topicThePumpState%">
+                </div>
 
-        <div class="field">
-            <label for="pressureSensorCurrentVolts">Current (V)</label>
-            <input id="pressureSensorCurrentVolts" type="text" readonly value="—">
-        </div>
+                <div class="field">
+                    <label for="mqttTopicIsTheDeviceEnabled">Enabled topic</label>
+                    <p class="field-hint">Topic used to report that the device is enabled</p>
+                    <input id="mqttTopicIsTheDeviceEnabled" type="text" autocomplete="off" value="%mqtt>topicIsTheDeviceEnabled%">
+                </div>
+
+                <div class="field">
+                    <label for="mqttTopicPressureValue">Pressure topic</label>
+                    <p class="field-hint">Topic used to report the pressure value</p>
+                    <input id="mqttTopicPressureValue" type="text" autocomplete="off" value="%mqtt>topicPressureValue%">
+                </div>
+
+                <div class="field">
+                    <label for="mqttTopicToListenCommands">Commands topic</label>
+                    <p class="field-hint">Topic used to listen for commands</p>
+                    <input id="mqttTopicToListenCommands" type="text" autocomplete="off" value="%mqtt>topicToListenCommands%">
+                </div>
+
+                <div class="field">
+                    <label for="mqttTopicToListenServerWasBorn">Server restart topic</label>
+                    <p class="field-hint">Topic used when the server has restarted</p>
+                    <input id="mqttTopicToListenServerWasBorn" type="text" autocomplete="off" value="%mqtt>topicToListenServerWasBorn%">
+                </div>
+
+                <div class="field">
+                    <label for="mqttPressureUpdateDiffAtm">Update pressure difference (Atm)</label>
+                    <input id="mqttPressureUpdateDiffAtm" type="number"
+                           min="0.01" max="0.5" step="0.01" value="%mqtt>pressureUpdateDiffAtm%">
+                </div>
+
+                <div class="field">
+                    <label for="mqttPressurePubMinIntSec">Pressure publish min interval (sec)</label>
+                    <input id="mqttPressurePubMinIntSec" type="number"
+                           min="5" max="120" step="1" value="%mqtt>pressurePubMinIntSec%">
+                </div>
+
+                <div class="field">
+                    <label for="mqttPumpStatePubMinIntSec">Pump state publish min interval (sec)</label>
+                    <input id="mqttPumpStatePubMinIntSec" type="number"
+                           min="5" max="120" step="1" value="%mqtt>pumpStatePubMinIntSec%">
+                </div>
+            </div>
+
+            <div id="tab-pressure" class="settings-tab-panel tab-panel" role="tabpanel">
+                <div class="field">
+                    <label for="pressureMin">Min pressure (Atm)</label>
+                    <input id="pressureMin" type="number" step="0.01"
+                           min="%pressure>minAtm#min%" max="%pressure>minAtm#max%" value="%pressure>minAtm%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureMax">Max pressure (Atm)</label>
+                    <input id="pressureMax" type="number" step="0.01"
+                           min="%pressure>maxAtm#min%" max="%pressure>maxAtm#max%" value="%pressure>maxAtm%">
+                </div>
+
+                <div class="field field-check">
+                    <input id="pressureLeakEnabled" type="checkbox" data-value="%pressure>leakDetectEnabled%">
+                    <label for="pressureLeakEnabled">Leak detection enabled</label>
+                </div>
+
+                <div class="field">
+                    <label for="pressureLeak">Leak timeout (s)</label>
+                    <input id="pressureLeak" type="number" step="1"
+                           min="%pressure>leakDetectSec#min%" max="%pressure>leakDetectSec#max%"
+                           value="%pressure>leakDetectSec%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureWeak">Weak pump timeout (s)</label>
+                    <input id="pressureWeak" type="number" step="1"
+                           min="%pressure>pumpWeakSec#min%" max="%pressure>pumpWeakSec#max%"
+                           value="%pressure>pumpWeakSec%">
+                </div>
+            </div>
+
+            <div id="tab-sensor" class="settings-tab-panel tab-panel" role="tabpanel">
+                <div class="field">
+                    <label for="pressureSensorMax">Sensor full-scale (Atm)</label>
+                    <input id="pressureSensorMax" type="number" step="0.1"
+                           min="%pressure>sensorMaxAtm#min%" max="%pressure>sensorMaxAtm#max%"
+                           value="%pressure>sensorMaxAtm%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureSensorMinVolts">Sensor min (V)</label>
+                    <input id="pressureSensorMinVolts" type="number" step="0.005"
+                           min="%pressure>sensorMinVolts#min%" max="%pressure>sensorMinVolts#max%"
+                           value="%pressure>sensorMinVolts%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureSensorMaxVolts">Sensor max (V)</label>
+                    <input id="pressureSensorMaxVolts" type="number" step="0.005"
+                           min="%pressure>sensorMaxVolts#min%" max="%pressure>sensorMaxVolts#max%"
+                           value="%pressure>sensorMaxVolts%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureSamplesCount">Samples count</label>
+                    <input id="pressureSamplesCount" type="number" step="1"
+                           min="%pressure>samplesCount#min%" max="%pressure>samplesCount#max%"
+                           value="%pressure>samplesCount%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureMeasureIntervalMs">Measure interval (ms)</label>
+                    <input id="pressureMeasureIntervalMs" type="number" step="1"
+                           min="%pressure>measureIntervalMs#min%" max="%pressure>measureIntervalMs#max%"
+                           value="%pressure>measureIntervalMs%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureMeasurementsCount">Measurements count</label>
+                    <input id="pressureMeasurementsCount" type="number" step="1"
+                           min="%pressure>measurementsCount#min%" max="%pressure>measurementsCount#max%"
+                           value="%pressure>measurementsCount%">
+                </div>
+
+                <div class="field">
+                    <label for="pressureSensorCurrentVolts">Current (V)</label>
+                    <input id="pressureSensorCurrentVolts" type="text" readonly value="—">
+                </div>
+            </div>
+            </div>
+        </section>
+
+        <section id="section-update" class="section-panel" aria-label="Update">
+            <h2 class="section-title">Update</h2>
+
+            <div class="upload-card">
+                <h3 class="upload-title">Code (firmware)</h3>
+                <p class="field-hint">PlatformIO: <code>.pio/build/esp32-c3-devkitc-02/firmware.bin</code></p>
+                <input id="updateCodeFile" type="file" accept=".bin,application/octet-stream">
+                <progress id="updateCodeProgress" class="progress-bar" max="100" value="0" hidden></progress>
+                <p id="updateCodeStatus" class="upload-status"></p>
+                <button type="button" class="btn btn-primary"
+                        onclick="uploadFirmware('/update/code', 'updateCodeFile', 'updateCodeProgress', 'updateCodeStatus')">
+                    Upload firmware
+                </button>
+            </div>
+
+            <div class="upload-card">
+                <h3 class="upload-title">Data (web assets)</h3>
+                <p class="field-hint">PlatformIO: <code>littlefs.bin</code> from <code>pio run -t buildfs</code></p>
+                <input id="updateDataFile" type="file" accept=".bin,application/octet-stream">
+                <progress id="updateDataProgress" class="progress-bar" max="100" value="0" hidden></progress>
+                <p id="updateDataStatus" class="upload-status"></p>
+                <button type="button" class="btn btn-primary"
+                        onclick="uploadFirmware('/update/data', 'updateDataFile', 'updateDataProgress', 'updateDataStatus')">
+                    Upload data
+                </button>
+            </div>
+        </section>
     </div>
 </div>
 
-<div class="page-footer">
+<div class="page-footer" id="settings-footer" hidden>
     <div class="page-footer-inner">
         <button type="button" class="btn btn-primary" onclick="saveSystemSettings()">Save</button>
         <button type="button" class="btn btn-secondary" onclick="window.location='/'">Reload</button>

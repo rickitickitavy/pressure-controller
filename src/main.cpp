@@ -10,6 +10,7 @@
 #include "SettingsManager.h"
 #include "WiFiController.h"
 #include "MqttClient.h"
+#include "WebServerController.h"
 
 static bool gMqttResyncRequested = false;
 
@@ -478,6 +479,8 @@ void setup() {
     wiFiController = new WiFiController(settingsManager, forceAp);
     LOGGER.info("WiFi controller started");
 
+    WebServerController::setPumpControlHandler(onMqttPumpControl);
+
     const bool otaWantedAtBoot =
             wiFiController->isApMode() ||
             (WiFi.isConnected() && settingsManager->getSettings()->network.enableOtaOnNetwork);
@@ -528,12 +531,15 @@ void loop() {
         gOtaEnabled = false;
         LOGGER.info("OTA stopped");
     }
-    if (gOtaEnabled) {
+    if (gOtaEnabled && !WebServerController::isHttpUploadInProgress()) {
         ArduinoOTA.handle();
     }
 
     // Apply mqttEnabled / broker settings on every loop (including after web save).
     syncMqtt(isAp, WiFi.isConnected());
+
+    WebServerController::setDeviceStatus(
+            gPumpOn, gPumpControlEnabled, mqtt != nullptr && mqtt->isConnected());
 
     if (gMode == UiMode::Settings) {
         (void) Encoder::consumeLongPress();
