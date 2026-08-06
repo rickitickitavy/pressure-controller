@@ -14,12 +14,14 @@ ST7789 may not need MISO, but the ESP32-C3 SPI HAL rejects `MISO = -1`. Assign a
 
 ## OTA gating
 
-| Mode | ArduinoOTA |
-|------|------------|
-| AP | Always on while AP is up |
-| STA | Only if `network.enableOtaOnNetwork` and WiFi connected |
+| Path | AP | STA |
+|------|----|-----|
+| ArduinoOTA | Always on while AP is up | Only if `network.enableOtaOnNetwork` and WiFi connected |
+| HTTP `/update/code` and `/update/data` | Always (web UI reachable) | Always when WiFi connected; **ignores** `enableOtaOnNetwork` |
 
-Start/stop OTA from `loop()` as link/flag state changes. Keep `ArduinoOTA.handle()` while enabled.
+Start/stop ArduinoOTA from `loop()` as link/flag state changes. Keep `ArduinoOTA.handle()` while enabled; skip it while `WebServerController::isHttpUploadInProgress()`.
+
+HTTP upload uses `Update.begin(..., U_FLASH)` for firmware and `U_SPIFFS` for LittleFS data; device reboots on success.
 
 ## LittleFS web assets
 

@@ -2,9 +2,9 @@
 name: esp32
 description: >-
   Applies ESP32 PlatformIO Arduino conventions: GFX UI rules, callback ownership, 
-  pins layout, LittleFS/OTA/EEPROM patterns, and ADC via analogReadMilliVolts only.
-  Use when working on ESP32, ESP32-C3, PlatformIO, platformio.ini, LittleFS, ArduinoOTA,
-  ADC sensors, ST7789/Adafruit GFX, WiFi/MQTT firmware, or when the user mentions the esp32
+   LittleFS/OTA/EEPROM patterns, and ADC via analogReadMilliVolts only.
+  Use when working on ESP32, ESP32-C3, PlatformIO, platformio.ini, LittleFS, 
+  ADC sensors, ST7789/Adafruit GFX, or when the user mentions the esp32
   skill.
 ---
 
@@ -52,12 +52,6 @@ pio run -t upload
 pio run -t uploadfs    # after data/ changes
 pio device monitor     # match monitor_speed in platformio.ini
 ```
-
-## OTA
-
-- ArduinoOTA always while AP is up.
-- On STA: only when `network.enableOtaOnNetwork` is true and WiFi is connected.
-- Call `ArduinoOTA.handle()` in `loop` while OTA is active.
 
 ## Hardware gotcha (ESP32-C3 SPI)
 

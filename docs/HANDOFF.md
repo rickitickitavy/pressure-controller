@@ -82,7 +82,7 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 ## Persistence & settings model
 
 - Stored in **EEPROM** (4096 bytes) via [`src/SettingsManager.cpp`](../src/SettingsManager.cpp) — **not** `Preferences`/NVS.
-- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), `displayRotate180` (bool), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 2`). No brightness field.
+- Schema: [`src/GlobalSettings.h`](../src/GlobalSettings.h) — `NetworkSettings` (incl. `enableOtaOnNetwork`), MQTT fields (incl. `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`, auth username/password, `mqttEnabled`), `PressureSettings` (`minMpa` / `maxMpa` / `leakDetectSec` / `pumpWeakSec` / `sensorMaxMpa` as `float`/`int`), `displayRotate180` (bool), version/marker (`GLOBAL_CURRENT_SETTINGS_VERSION = 5`). No brightness field.
 - First boot (invalid marker): single `SettingsManager::applyDefaults()` fills all defaults, then save + restart.
 - Version mismatch: upgrade branch kept (log + stamp version + save) but **no field migrations** yet.
 - Web/API parameter names: [`src/SettingsNavigator.cpp`](../src/SettingsNavigator.cpp) + `ParamDescriptor` (incl. `BOOLEAN`, pressure `*`, `network>enableOtaOnNetwork`, `display>rotate180`).
@@ -97,29 +97,46 @@ Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
 - **AP mode**: hold encoder button **LOW at boot**. SoftAP SSID `{mqttDeviceName}-WiFi` (or `pump-WiFi`), password `00000000`, IP `192.168.0.1`, channel 6. Auto-off after **5 min**, then switches to STA. LCD shows WiFi icon + **signal %** + **AP** label (and **OTA** when OTA active) and the device **MAC** under MAX.
 - STA recovery: sleep off, TX power tweaks, manual reconnect (auto-reconnect disabled).
 - Web UI + API start whenever WiFiController inits (AP or STA).
-- `NetworkSettings.enableOtaOnNetwork` (default **false**): when true, OTA is allowed in STA; ignored in AP (OTA always on in AP).
+- `NetworkSettings.enableOtaOnNetwork` (default **false**): when true, **ArduinoOTA** is allowed in STA; ignored in AP (ArduinoOTA always on in AP). Does **not** gate HTTP firmware/data upload from the web UI.
 
 ### OTA
 
-- **AP:** `ArduinoOTA` always while AP is up.
-- **STA:** OTA only when `network.enableOtaOnNetwork` is true and WiFi is connected.
+#### ArduinoOTA (PlatformIO / `espota`)
+
+- **AP:** always while AP is up.
+- **STA:** only when `network.enableOtaOnNetwork` is true and WiFi is connected.
 - Started/stopped from `loop()` as link / flag state changes; LCD shows **OTA** under the WiFi icon (below **signal %** / **AP**) while active.
+- Skipped while an HTTP upload is in progress (`WebServerController::isHttpUploadInProgress()`).
+
+#### HTTP upload (web UI Update tab)
+
+- Always allowed when the web server is reachable (AP or STA connected); **ignores** `enableOtaOnNetwork`.
+- `POST /update/code` — app firmware (`U_FLASH`); upload PlatformIO `firmware.bin`.
+- `POST /update/data` — LittleFS image (`U_SPIFFS`); upload `littlefs.bin` from `pio run -t buildfs` / `uploadfs`.
+- On success the device reboots.
 
 ### MQTT ([`src/MqttClient.cpp`](../src/MqttClient.cpp))
 
 - Created only when STA is connected (not in AP). Lazy-created later if WiFi connects after boot.
 - On connect (and on `topicToListenServerWasBorn` = `online`): publish device name to `topicTheDeviceIsAlive`; publish retained pump `"ON"`/`"OFF"` to `topicThePumpState/{mqttDeviceName}`; publish pressure (Atm, 2 decimals) to `topicPressureValue/{mqttDeviceName}`; subscribe to `topicToListenCommands/{mqttDeviceName}` and `topicToListenServerWasBorn` (default `homeassistant/status`).
 - Ongoing pump publish: on actual pump state change via `notifyPumpState` from `setPump` (retained), rate-limited by `mqtt>pumpStatePubMinIntSec` (default **10**, clamp **5–120**). Changes during cooldown are held and published with the latest state once the interval elapses. Ongoing pressure publish: only when `|Δatm| > mqtt>pressureUpdateDiffAtm` (default **0.05**, clamp **0.01–0.5**; Web UI step **0.01**) and at least `mqtt>pressurePubMinIntSec` (default **10**, clamp **5–120**) has passed since the last pressure publish. No pressure heartbeat.
-- Commands on `commands/{device}`: `enable` / `disable` (case-insensitive). `disable` forces pump OFF, blocks auto ON, and shows pump icon **red**; `enable` restores auto control (green/gray icon). **LEAK** timeout uses the same disable path.
+- Commands on `commands/{device}`: `on` / `off` (case-insensitive). `off` forces pump OFF, blocks auto ON, and shows pump icon **red**; `on` restores auto control (green/gray icon). **LEAK** timeout uses the same disable path. Web Status tab enable toggle uses the same `setPumpControlEnabled` path and publishes retained state on the enabled topic when MQTT is up.
 - Settings `pressureUpdateDiffAtm`, `pressurePubMinIntSec`, `pumpStatePubMinIntSec`, and `displayRotate180` are appended on `GlobalSettings` (no settings-version bump); out-of-range EEPROM values reset to defaults on load (`displayRotate180` default **false** / OFF).
 
 ### Web / LittleFS
 
-- Filesystem: **LittleFS** (`board_build.filesystem = littlefs`); assets under [`data/`](../data/) (`index.html`, `css/`, `js/`).
+- Filesystem: **LittleFS** (`board_build.filesystem = littlefs`); assets under [`data/`](../data/) (`index.html`, `css/all.css`).
 - Flash FS: `pio run -t uploadfs` (in addition to firmware upload).
+- Firmware label: `FIRMWARE_VERSION` in [`src/Defines.h`](../src/Defines.h) (exposed on Status / `/statusApi`).
 - Server: [`src/WebServerController.cpp`](../src/WebServerController.cpp) on port **80**
-  - `/`, `/index.html` — WiFi (incl. Enable OTA on network), Display (`display>rotate180`), MQTT, and PressureSettings page (API keys `pressure>minAtm` / `maxAtm` / `sensorMaxAtm`; pressures in Atm only)
+  - `/`, `/index.html` — left-nav UI with three sections:
+    - **Status** — live pressure, pump ON/OFF, enable toggle, IP, RSSI, MQTT connected, firmware version; polls `GET /statusApi` every **1 s** only while Status is visible
+    - **Settings** — existing horizontal sub-tabs (WiFi incl. Enable OTA on network / Display `display>rotate180` / MQTT / Pressure / Sensor); pressures in Atm (`pressure>minAtm` / `maxAtm` / `sensorMaxAtm`)
+    - **Update** — upload Code (`firmware.bin`) and Data (`littlefs.bin`)
   - `/settingsApi` — read/write parameters
+  - `/statusApi` — `GET` JSON (`pressureAtm`, `pumpOn`, `pumpControlEnabled`, `firmwareVersion`, `ip`, `rssi`, `mqttConnected`); `POST ?operation=write&enabled=0|1` toggles pump control (same handler as MQTT `on`/`off`)
+  - `/sensorVoltage` — live sensor volts (Settings → Sensor sub-tab)
+  - `/update/code`, `/update/data` — HTTP OTA (see above)
   - `/log` — in-memory logger dump
   - other paths served from LittleFS
 
