@@ -54,6 +54,10 @@ void MqttClient::setMessageCallback(MessageCallback cb) {
     client->setCallback(cb);
 }
 
+bool MqttClient::isConnected() const {
+    return client != nullptr && client->connected();
+}
+
 bool MqttClient::pressureIntervalElapsed() const {
     const unsigned long intervalMs =
             static_cast<unsigned long>(settings->pressurePubMinIntSec) * 1000UL;

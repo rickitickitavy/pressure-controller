@@ -4,9 +4,13 @@
 
 #include "WebServerController.h"
 #include "Defines.h"
+#include "GlobalSettings.h"
 #include "Logger.h"
 #include "pressure.h"
+#include <Arduino.h>
 #include <LittleFS.h>
+#include <Update.h>
+#include <WiFi.h>
 
 String TEXT_PLAN = "text/plan";
 String TEXT_JSON = "text/json";
@@ -14,6 +18,20 @@ String OK_RESPONSE = "OK";
 String PROFILES_PARAMETER_ATTR_NAME = "parameter";
 
 SettingsManager *WebServerController::settingsManager;
+WebServerController::PumpControlFn WebServerController::pumpControlHandler = nullptr;
+bool WebServerController::devicePumpOn = false;
+bool WebServerController::devicePumpControlEnabled = true;
+bool WebServerController::deviceMqttConnected = false;
+bool WebServerController::httpUploadInProgress = false;
+int WebServerController::uploadPartitionType = U_FLASH;
+
+namespace {
+bool parseTruthy(const String &value) {
+    String v = value;
+    v.toLowerCase();
+    return v == "1" || v == "true" || v == "yes" || v == "on";
+}
+} // namespace
 
 WebServerController::WebServerController(SettingsManager *settingsManager) {
     WebServerController::settingsManager = settingsManager;
@@ -37,11 +55,170 @@ WebServerController::WebServerController(SettingsManager *settingsManager) {
     webServer->on("/settingsApi", HTTP_GET, settingsApiProcessor);
     webServer->on("/settingsApi", HTTP_POST, settingsApiProcessor);
 
+    webServer->on("/statusApi", HTTP_GET, statusApiProcessor);
+    webServer->on("/statusApi", HTTP_POST, statusApiProcessor);
+
     webServer->on("/sensorVoltage", HTTP_GET, sensorVoltageProcessor);
+
+    webServer->on(
+            "/update/code", HTTP_POST, updateCodePostProcessor,
+            [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
+               bool final) { updateUploadHandler(request, filename, index, data, len, final); });
+
+    webServer->on(
+            "/update/data", HTTP_POST, updateDataPostProcessor,
+            [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
+               bool final) { updateUploadHandler(request, filename, index, data, len, final); });
 
     webServer->onNotFound(loadFileByUrl);
 
     webServer->begin();
+}
+
+void WebServerController::setPumpControlHandler(PumpControlFn fn) {
+    pumpControlHandler = fn;
+}
+
+void WebServerController::setDeviceStatus(bool pumpOn, bool pumpControlEnabled, bool mqttConnected) {
+    devicePumpOn = pumpOn;
+    devicePumpControlEnabled = pumpControlEnabled;
+    deviceMqttConnected = mqttConnected;
+}
+
+bool WebServerController::isHttpUploadInProgress() {
+    return httpUploadInProgress;
+}
+
+bool WebServerController::isOtaAllowed() {
+    // HTTP upload is gated only by reachability of the web UI, not enableOtaOnNetwork
+    // (that flag still controls ArduinoOTA only).
+    const wifi_mode_t mode = WiFi.getMode();
+    if (mode == WIFI_AP || mode == WIFI_AP_STA) {
+        return true;
+    }
+    return WiFi.isConnected();
+}
+
+void WebServerController::statusApiProcessor(AsyncWebServerRequest *request) {
+    if (request->method() == HTTP_GET) {
+        const float pressureAtm = PRESSURE.readMpa() / PRESSURE_ATM_MPA;
+        const wifi_mode_t mode = WiFi.getMode();
+        const bool apMode = mode == WIFI_AP || mode == WIFI_AP_STA;
+        const bool wifiConnected = WiFi.isConnected();
+        const IPAddress ip = apMode ? WiFi.softAPIP() : WiFi.localIP();
+
+        String json = "{";
+        json += "\"pressureAtm\":" + String(pressureAtm, 2) + ",";
+        json += "\"pumpOn\":" + String(devicePumpOn ? "true" : "false") + ",";
+        json += "\"pumpControlEnabled\":" + String(devicePumpControlEnabled ? "true" : "false") + ",";
+        json += "\"firmwareVersion\":\"" + String(FIRMWARE_VERSION) + "\",";
+        json += "\"ip\":\"" + ip.toString() + "\",";
+        json += "\"rssi\":" + String(wifiConnected ? WiFi.RSSI() : 0) + ",";
+        json += "\"mqttConnected\":" + String(deviceMqttConnected ? "true" : "false");
+        json += "}";
+
+        request->send(200, TEXT_JSON, json);
+        return;
+    }
+
+    if (request->method() == HTTP_POST) {
+        // Prefer POST body params; fall back to query string (more reliable for small toggles).
+        String operation = request->arg(PROFILES_OPERATION_ATTR_NAME);
+        if (operation.isEmpty() && request->hasParam(PROFILES_OPERATION_ATTR_NAME, true)) {
+            operation = request->getParam(PROFILES_OPERATION_ATTR_NAME, true)->value();
+        }
+        if (operation != PARAMETER_OPERATION_WRITE) {
+            request->send(400, TEXT_PLAN, "Unsupported operation");
+            return;
+        }
+
+        String enabledArg = request->arg("enabled");
+        if (enabledArg.isEmpty() && request->hasParam("enabled", true)) {
+            enabledArg = request->getParam("enabled", true)->value();
+        }
+        if (enabledArg.isEmpty()) {
+            request->send(400, TEXT_PLAN, "\"enabled\" is required");
+            return;
+        }
+        const bool enabled = parseTruthy(enabledArg);
+        if (pumpControlHandler == nullptr) {
+            request->send(503, TEXT_PLAN, "Pump control unavailable");
+            return;
+        }
+        LOGGER.info(String("Web statusApi: pumpControlEnabled=") + (enabled ? "true" : "false"));
+        pumpControlHandler(enabled);
+        // Reflect immediately so the next poll does not race the main-loop snapshot.
+        devicePumpControlEnabled = enabled;
+        if (!enabled) {
+            devicePumpOn = false;
+        }
+        request->send(200, TEXT_PLAN, OK_RESPONSE);
+    }
+}
+
+void WebServerController::updateUploadHandler(AsyncWebServerRequest *request, const String &filename, size_t index,
+                                              uint8_t *data, size_t len, bool final) {
+    (void) filename;
+
+    if (index == 0) {
+        uploadPartitionType = request->url().endsWith("/data") ? U_SPIFFS : U_FLASH;
+        if (httpUploadInProgress) {
+            LOGGER.error("HTTP OTA rejected: upload already in progress");
+            return;
+        }
+        if (!isOtaAllowed()) {
+            LOGGER.error("HTTP OTA rejected: not allowed in current WiFi/OTA mode");
+            return;
+        }
+        httpUploadInProgress = true;
+        LOGGER.info("HTTP OTA start, partition=" + String(uploadPartitionType));
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, uploadPartitionType)) {
+            Update.printError(Serial);
+            httpUploadInProgress = false;
+            return;
+        }
+    }
+
+    if (len > 0) {
+        if (Update.write(data, len) != len) {
+            Update.printError(Serial);
+        }
+    }
+
+    if (final) {
+        if (!Update.end(true)) {
+            Update.printError(Serial);
+            httpUploadInProgress = false;
+        }
+    }
+}
+
+void WebServerController::updateCodePostProcessor(AsyncWebServerRequest *request) {
+    (void) request;
+    if (Update.hasError() || !httpUploadInProgress) {
+        const String message = Update.hasError() ? Update.errorString() : "Upload failed";
+        request->send(500, TEXT_PLAN, message);
+        Update.abort();
+        httpUploadInProgress = false;
+        return;
+    }
+    request->send(200, TEXT_PLAN, OK_RESPONSE);
+    delay(500);
+    ESP.restart();
+}
+
+void WebServerController::updateDataPostProcessor(AsyncWebServerRequest *request) {
+    (void) request;
+    if (Update.hasError() || !httpUploadInProgress) {
+        const String message = Update.hasError() ? Update.errorString() : "Upload failed";
+        request->send(500, TEXT_PLAN, message);
+        Update.abort();
+        httpUploadInProgress = false;
+        return;
+    }
+    request->send(200, TEXT_PLAN, OK_RESPONSE);
+    delay(500);
+    ESP.restart();
 }
 
 /**

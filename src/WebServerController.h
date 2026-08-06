@@ -19,13 +19,32 @@
 #include "SettingsManager.h"
 
 class WebServerController {
-private:
-    AsyncWebServer* webServer;
 public:
-    static SettingsManager* settingsManager;
-    WebServerController(SettingsManager* settingsManager);
+    using PumpControlFn = void (*)(bool enabled);
 
-    static String systemSettingsProcessor(const String& paramName);
+private:
+    AsyncWebServer *webServer;
+
+    static PumpControlFn pumpControlHandler;
+    static bool devicePumpOn;
+    static bool devicePumpControlEnabled;
+    static bool deviceMqttConnected;
+    static bool httpUploadInProgress;
+    static int uploadPartitionType;
+
+    static bool isOtaAllowed();
+    static void statusApiProcessor(AsyncWebServerRequest *request);
+    static void updateCodePostProcessor(AsyncWebServerRequest *request);
+    static void updateDataPostProcessor(AsyncWebServerRequest *request);
+    static void updateUploadHandler(AsyncWebServerRequest *request, const String &filename, size_t index,
+                                    uint8_t *data, size_t len, bool final);
+
+public:
+    static SettingsManager *settingsManager;
+
+    WebServerController(SettingsManager *settingsManager);
+
+    static String systemSettingsProcessor(const String &paramName);
 
     static void settingsApiProcessor(AsyncWebServerRequest *request);
 
@@ -33,6 +52,11 @@ public:
 
     static void loadFileByUrl(AsyncWebServerRequest *request);
 
+    static void setPumpControlHandler(PumpControlFn fn);
+
+    static void setDeviceStatus(bool pumpOn, bool pumpControlEnabled, bool mqttConnected);
+
+    static bool isHttpUploadInProgress();
 };
 
 extern String TEXT_PLAN;

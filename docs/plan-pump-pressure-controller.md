@@ -80,8 +80,9 @@ stateDiagram-v2
 ## Networking (added on `feature/add-mqtt-connection`)
 
 - **WiFi STA** with reconnect; **AP** if encoder button held at boot (5 min timeout). In AP mode LCD shows MAC under MAX.
-- **LittleFS** web UI (`data/`) + `/settingsApi` for WiFi/MQTT/Display (`display>rotate180`) **and** `PressureSettings` (min/max/leak/weak/sensor; Atm in UI).
-- **ArduinoOTA**: always while AP is up; in STA only when `network.enableOtaOnNetwork` is true (default false). LCD shows **OTA** under the WiFi icon when active.
+- **LittleFS** web UI (`data/`) with Status / Settings / Update sections + `/settingsApi` for WiFi/MQTT/Display (`display>rotate180`) **and** `PressureSettings` (min/max/leak/weak/sensor; Atm in UI).
+- `/statusApi` for live status + enable toggle; `/update/code` and `/update/data` for HTTP OTA (ignores `enableOtaOnNetwork`).
+- **ArduinoOTA**: always while AP is up; in STA only when `network.enableOtaOnNetwork` is true (default false). LCD shows **OTA** under the WiFi icon when ArduinoOTA is active.
 - **MQTT**: connect; publish alive / pump state / pressure; `enable`/`disable` commands; `pressureUpdateDiffAtm` gate. See [`HANDOFF.md`](HANDOFF.md).
 
 Details: [`HANDOFF.md`](HANDOFF.md).

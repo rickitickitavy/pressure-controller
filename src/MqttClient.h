@@ -72,6 +72,8 @@ public:
     void notifyDeviceEnabled(bool enabled);
 
     void dispatch(bool pumpOn, float pressureMpa);
+
+    bool isConnected() const;
 };
 
 
