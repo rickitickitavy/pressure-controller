@@ -39,6 +39,8 @@ namespace {
     constexpr uint16_t kConfirmBg = 0x0320;
     constexpr uint16_t kCancelFg = 0xFCD3;
     constexpr uint16_t kCancelBg = 0x9800;
+    constexpr uint16_t kCheckMarkGreen = 0x07E0; // tft-ui bold green bird ✓
+    constexpr int kCheckStrokePx = 4;
     constexpr int kPumpIconW = 112;
     constexpr int kPumpIconH = 78;
     // Top of pump band → icon y=159 (12px above previous centered y=171).
@@ -48,6 +50,9 @@ namespace {
     constexpr int kSettingsRowCount = static_cast<int>(SettingsFocus::Count);
     constexpr int kActionBtnPadX = 10;
     constexpr int kActionBtnPadY = 2;
+    constexpr int kCheckSize = 14;
+    constexpr int kCheckRightPad = 8;
+    constexpr int kLabelPadX = 6;
 
     static_assert(kYMax + kHMax + 5 == kYMac, "5px gap max/mac");
     static_assert(kYMac + kHMac == kYCurrent, "gap mac/current");
@@ -301,8 +306,8 @@ namespace {
         return fabsf(a - b) < eps;
     }
 
-    void drawSettingsRow(int index, const char *text, bool selected, bool editing,
-                         uint16_t idleBg = ST77XX_BLACK) {
+    void drawSettingsRow(int index, const char *name, const char *value, bool selected,
+                         bool editing, uint16_t idleBg = ST77XX_BLACK) {
         const int y = settingsRowY(index);
         const int h = settingsRowH(index);
         uint16_t fg = ST77XX_WHITE;
@@ -311,7 +316,79 @@ namespace {
             fg = ST77XX_BLACK;
             bg = editing ? ST77XX_CYAN : ST77XX_YELLOW;
         }
-        drawBar(y, h, text, fg, bg, &FreeSansBold12pt7b);
+        tft.fillRect(0, y, TFT_WIDTH, h, bg);
+
+        tft.setFont(&FreeSansBold12pt7b);
+        tft.setTextSize(1);
+        tft.setTextColor(fg);
+        int16_t x1 = 0;
+        int16_t y1 = 0;
+        uint16_t tw = 0;
+        uint16_t th = 0;
+        tft.getTextBounds(name, 0, 0, &x1, &y1, &tw, &th);
+        int baseline = y + (h + static_cast<int>(th)) / 2;
+        if (baseline > y + h - 2) {
+            baseline = y + h - 2;
+        }
+        if (baseline < y + static_cast<int>(th)) {
+            baseline = y + static_cast<int>(th);
+        }
+        tft.setCursor(kLabelPadX - x1, baseline);
+        tft.print(name);
+
+        if (value != nullptr && value[0] != '\0') {
+            tft.getTextBounds(value, 0, 0, &x1, &y1, &tw, &th);
+            tft.setCursor(TFT_WIDTH - kLabelPadX - static_cast<int>(tw) - x1, baseline);
+            tft.print(value);
+        }
+        tft.setFont(nullptr);
+    }
+
+    void drawSettingsCheckboxRow(int index, const char *label, bool checked, bool selected,
+                                 bool editing) {
+        const int y = settingsRowY(index);
+        const int h = settingsRowH(index);
+        uint16_t fg = ST77XX_WHITE;
+        uint16_t bg = ST77XX_BLACK;
+        if (selected) {
+            fg = ST77XX_BLACK;
+            bg = editing ? ST77XX_CYAN : ST77XX_YELLOW;
+        }
+        tft.fillRect(0, y, TFT_WIDTH, h, bg);
+
+        tft.setFont(&FreeSansBold12pt7b);
+        tft.setTextSize(1);
+        tft.setTextColor(fg);
+        int16_t x1 = 0;
+        int16_t y1 = 0;
+        uint16_t tw = 0;
+        uint16_t th = 0;
+        tft.getTextBounds(label, 0, 0, &x1, &y1, &tw, &th);
+        int baseline = y + (h + static_cast<int>(th)) / 2;
+        if (baseline > y + h - 2) {
+            baseline = y + h - 2;
+        }
+        if (baseline < y + static_cast<int>(th)) {
+            baseline = y + static_cast<int>(th);
+        }
+        tft.setCursor(kLabelPadX - x1, baseline);
+        tft.print(label);
+        tft.setFont(nullptr);
+
+        const int boxX = TFT_WIDTH - kCheckRightPad - kCheckSize;
+        const int boxY = y + (h - kCheckSize) / 2;
+        tft.drawRect(boxX, boxY, kCheckSize, kCheckSize, fg);
+        if (checked) {
+            // Bird-like ✓: 4 px; green unfocused, black focused/edit (tft-ui skill).
+            const uint16_t markFg =
+                    (selected || editing) ? static_cast<uint16_t>(ST77XX_BLACK) : kCheckMarkGreen;
+            const int half = kCheckStrokePx / 2;
+            for (int i = 0; i < kCheckStrokePx; ++i) {
+                const int dy = i - half;
+                tft.drawLine(boxX - 1, boxY + 6 + dy, boxX + 5, boxY + 12 + dy, markFg);
+                tft.drawLine(boxX + 5, boxY + 12 + dy, boxX + 15, boxY - 1 + dy, markFg);
+            }
+        }
     }
 
     void drawSettingsActionButton(int index, const char *text, bool confirm, bool selected) {
@@ -359,48 +436,57 @@ namespace {
         tft.setFont(nullptr);
     }
 
-    void formatSettingsRow(const UiState &state, SettingsFocus focus, char *buf, size_t bufSize,
-                           uint16_t *idleBgOut) {
+    void formatSettingsRow(const UiState &state, SettingsFocus focus, char *name, size_t nameSize,
+                           char *value, size_t valueSize, uint16_t *idleBgOut) {
         *idleBgOut = ST77XX_BLACK;
+        name[0] = '\0';
+        value[0] = '\0';
         switch (focus) {
             case SettingsFocus::Leak:
-                snprintf(buf, bufSize, "LEAK %us", state.draft.leakDetectSec);
+                snprintf(name, nameSize, "LEAK");
+                snprintf(value, valueSize, "%us", state.draft.leakDetectSec);
                 break;
             case SettingsFocus::Weak:
-                snprintf(buf, bufSize, "WEAK %us", state.draft.pumpWeakSec);
+                snprintf(name, nameSize, "WEAK");
+                snprintf(value, valueSize, "%us", state.draft.pumpWeakSec);
                 break;
             case SettingsFocus::SensorMax:
-                snprintf(buf, bufSize, "SENS %.1f", toAtm(state.draft.sensorMaxMpa));
+                snprintf(name, nameSize, "SENS");
+                snprintf(value, valueSize, "%.1f", toAtm(state.draft.sensorMaxMpa));
                 break;
             case SettingsFocus::SensorMinVolts:
-                snprintf(buf, bufSize, "VMIN %.3f", state.draft.sensorMinVolts);
+                snprintf(name, nameSize, "VMIN");
+                snprintf(value, valueSize, "%.3f", state.draft.sensorMinVolts);
                 break;
             case SettingsFocus::SensorMaxVolts:
-                snprintf(buf, bufSize, "VMAX %.3f", state.draft.sensorMaxVolts);
+                snprintf(name, nameSize, "VMAX");
+                snprintf(value, valueSize, "%.3f", state.draft.sensorMaxVolts);
                 break;
             case SettingsFocus::SamplesCount:
-                snprintf(buf, bufSize, "SAMP %d", state.draft.samplesCount);
+                snprintf(name, nameSize, "SAMP");
+                snprintf(value, valueSize, "%d", state.draft.samplesCount);
                 break;
             case SettingsFocus::MeasureIntervalMs:
-                snprintf(buf, bufSize, "INTV %d", state.draft.measureIntervalMs);
+                snprintf(name, nameSize, "INTV");
+                snprintf(value, valueSize, "%d", state.draft.measureIntervalMs);
                 break;
             case SettingsFocus::MeasurementsCount:
-                snprintf(buf, bufSize, "MCNT %d", state.draft.measurementsCount);
+                snprintf(name, nameSize, "MCNT");
+                snprintf(value, valueSize, "%d", state.draft.measurementsCount);
                 break;
             case SettingsFocus::WifiEnabled:
-                snprintf(buf, bufSize, "WIFI %s", state.draftWifiEnabled ? "ON" : "OFF");
+                snprintf(name, nameSize, "WIFI");
                 break;
             case SettingsFocus::OtaEnabled:
-                snprintf(buf, bufSize, "OTA %s", state.draftOtaEnabled ? "ON" : "OFF");
+                snprintf(name, nameSize, "OTA");
                 break;
             case SettingsFocus::Save:
-                snprintf(buf, bufSize, "SAVE");
+                snprintf(name, nameSize, "SAVE");
                 break;
             case SettingsFocus::Cancel:
-                snprintf(buf, bufSize, "CANCEL");
+                snprintf(name, nameSize, "CANCEL");
                 break;
             case SettingsFocus::Count:
-                buf[0] = '\0';
                 break;
         }
     }
@@ -409,20 +495,31 @@ namespace {
         if (focus >= SettingsFocus::Count) {
             return;
         }
-        char buf[40];
+        char name[16];
+        char value[24];
         uint16_t idleBg = ST77XX_BLACK;
-        formatSettingsRow(state, focus, buf, sizeof(buf), &idleBg);
+        formatSettingsRow(state, focus, name, sizeof(name), value, sizeof(value), &idleBg);
         const bool selected = state.focus == focus;
         if (focus == SettingsFocus::Save) {
-            drawSettingsActionButton(static_cast<int>(focus), buf, true, selected);
+            drawSettingsActionButton(static_cast<int>(focus), name, true, selected);
             return;
         }
         if (focus == SettingsFocus::Cancel) {
-            drawSettingsActionButton(static_cast<int>(focus), buf, false, selected);
+            drawSettingsActionButton(static_cast<int>(focus), name, false, selected);
             return;
         }
         const bool editing = selected && state.settingsEditing;
-        drawSettingsRow(static_cast<int>(focus), buf, selected, editing, idleBg);
+        if (focus == SettingsFocus::WifiEnabled) {
+            drawSettingsCheckboxRow(static_cast<int>(focus), name, state.draftWifiEnabled, selected,
+                                    editing);
+            return;
+        }
+        if (focus == SettingsFocus::OtaEnabled) {
+            drawSettingsCheckboxRow(static_cast<int>(focus), name, state.draftOtaEnabled, selected,
+                                    editing);
+            return;
+        }
+        drawSettingsRow(static_cast<int>(focus), name, value, selected, editing, idleBg);
     }
 
     void drawAllSettingsRows(const UiState &state) {
