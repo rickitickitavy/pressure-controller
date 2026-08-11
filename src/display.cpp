@@ -33,22 +33,28 @@ namespace {
     constexpr int kHMin = 62;
 
     constexpr uint16_t kDarkGreen = 0x0400;
-    constexpr uint16_t kDarkRed = 0x8000;
     constexpr uint16_t kPumpOffGray = 0x8410;
+    // tft-ui Confirm / Cancel palette (RGB565).
+    constexpr uint16_t kConfirmFg = 0xCFF7;
+    constexpr uint16_t kConfirmBg = 0x0320;
+    constexpr uint16_t kCancelFg = 0xFCD3;
+    constexpr uint16_t kCancelBg = 0x9800;
     constexpr int kPumpIconW = 112;
     constexpr int kPumpIconH = 78;
     // Top of pump band → icon y=159 (12px above previous centered y=171).
     constexpr int kPumpIconPadY = 1;
 
-    // Settings screen: 11 rows covering full height (no leftover strip / no fillScreen).
+    // Settings screen: rows cover full height (no leftover strip / no fillScreen).
     constexpr int kSettingsRowCount = static_cast<int>(SettingsFocus::Count);
+    constexpr int kActionBtnPadX = 10;
+    constexpr int kActionBtnPadY = 2;
 
     static_assert(kYMax + kHMax + 5 == kYMac, "5px gap max/mac");
     static_assert(kYMac + kHMac == kYCurrent, "gap mac/current");
     static_assert(kYCurrent + kHCurrent == kYPump, "gap current/pump");
     static_assert(kYPump + kHPump == kYMin, "gap pump/min");
     static_assert(kYMin + kHMin == TFT_HEIGHT, "min must reach bottom");
-    static_assert(kSettingsRowCount == 11, "settings focus enum drives row count");
+    static_assert(kSettingsRowCount == 12, "settings focus enum drives row count");
 
     int settingsRowY(int index) {
         return (index * TFT_HEIGHT) / kSettingsRowCount;
@@ -308,6 +314,51 @@ namespace {
         drawBar(y, h, text, fg, bg, &FreeSansBold12pt7b);
     }
 
+    void drawSettingsActionButton(int index, const char *text, bool confirm, bool selected) {
+        const int y = settingsRowY(index);
+        const int h = settingsRowH(index);
+        tft.fillRect(0, y, TFT_WIDTH, h, ST77XX_BLACK);
+
+        const int btnX = kActionBtnPadX;
+        const int btnY = y + kActionBtnPadY;
+        const int btnW = TFT_WIDTH - 2 * kActionBtnPadX;
+        const int btnH = h - 2 * kActionBtnPadY;
+        if (btnW <= 0 || btnH <= 0) {
+            return;
+        }
+        const int radius = btnH / 2;
+        const uint16_t fg = confirm ? kConfirmFg : kCancelFg;
+        const uint16_t bg = confirm ? kConfirmBg : kCancelBg;
+        tft.fillRoundRect(btnX, btnY, btnW, btnH, radius, bg);
+        if (selected) {
+            tft.drawRoundRect(btnX, btnY, btnW, btnH, radius, ST77XX_YELLOW);
+            if (btnH > 4 && btnW > 4) {
+                tft.drawRoundRect(btnX + 1, btnY + 1, btnW - 2, btnH - 2, radius > 0 ? radius - 1 : 0,
+                                  ST77XX_YELLOW);
+            }
+        }
+
+        tft.setFont(&FreeSansBold12pt7b);
+        tft.setTextSize(1);
+        tft.setTextColor(fg);
+        int16_t x1 = 0;
+        int16_t y1 = 0;
+        uint16_t tw = 0;
+        uint16_t th = 0;
+        tft.getTextBounds(text, 0, 0, &x1, &y1, &tw, &th);
+        int baseline = btnY + (btnH + static_cast<int>(th)) / 2;
+        if (baseline > btnY + btnH - 2) {
+            baseline = btnY + btnH - 2;
+        }
+        if (baseline < btnY + static_cast<int>(th)) {
+            baseline = btnY + static_cast<int>(th);
+        }
+        const int x = btnX + (btnW - static_cast<int>(tw)) / 2 - x1;
+        tft.setCursor(x, baseline);
+        tft.print(text);
+        tft.setFont(nullptr);
+    }
+
     void formatSettingsRow(const UiState &state, SettingsFocus focus, char *buf, size_t bufSize,
                            uint16_t *idleBgOut) {
         *idleBgOut = ST77XX_BLACK;
@@ -339,13 +390,14 @@ namespace {
             case SettingsFocus::WifiEnabled:
                 snprintf(buf, bufSize, "WIFI %s", state.draftWifiEnabled ? "ON" : "OFF");
                 break;
+            case SettingsFocus::OtaEnabled:
+                snprintf(buf, bufSize, "OTA %s", state.draftOtaEnabled ? "ON" : "OFF");
+                break;
             case SettingsFocus::Save:
                 snprintf(buf, bufSize, "SAVE");
-                *idleBgOut = kDarkGreen;
                 break;
             case SettingsFocus::Cancel:
                 snprintf(buf, bufSize, "CANCEL");
-                *idleBgOut = kDarkRed;
                 break;
             case SettingsFocus::Count:
                 buf[0] = '\0';
@@ -361,6 +413,14 @@ namespace {
         uint16_t idleBg = ST77XX_BLACK;
         formatSettingsRow(state, focus, buf, sizeof(buf), &idleBg);
         const bool selected = state.focus == focus;
+        if (focus == SettingsFocus::Save) {
+            drawSettingsActionButton(static_cast<int>(focus), buf, true, selected);
+            return;
+        }
+        if (focus == SettingsFocus::Cancel) {
+            drawSettingsActionButton(static_cast<int>(focus), buf, false, selected);
+            return;
+        }
         const bool editing = selected && state.settingsEditing;
         drawSettingsRow(static_cast<int>(focus), buf, selected, editing, idleBg);
     }
@@ -391,6 +451,8 @@ namespace {
                 return prev.draft.measurementsCount != cur.draft.measurementsCount;
             case SettingsFocus::WifiEnabled:
                 return prev.draftWifiEnabled != cur.draftWifiEnabled;
+            case SettingsFocus::OtaEnabled:
+                return prev.draftOtaEnabled != cur.draftOtaEnabled;
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
             case SettingsFocus::Count:
@@ -457,7 +519,8 @@ namespace Display {
                     !gHasLast || gLast.focus != state.focus ||
                     gLast.settingsEditing != state.settingsEditing ||
                     draftChanged(gLast.draft, state.draft) ||
-                    gLast.draftWifiEnabled != state.draftWifiEnabled || gLast.mode != state.mode;
+                    gLast.draftWifiEnabled != state.draftWifiEnabled ||
+                    gLast.draftOtaEnabled != state.draftOtaEnabled || gLast.mode != state.mode;
             if (need) {
                 drawSettingsIncremental(gLast, state, !gHasLast);
                 gLast = state;

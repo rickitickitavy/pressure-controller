@@ -66,10 +66,11 @@ When the pump turns **ON**:
 
 ### SETTINGS screen (LCD)
 
-Rows: **LEAK**, **WEAK**, **SENS**, **VMIN**, **VMAX**, **SAMP**, **INTV**, **MCNT**, **WIFI**, **SAVE**, **CANCEL**
+Rows: **LEAK**, **WEAK**, **SENS**, **VMIN**, **VMAX**, **SAMP**, **INTV**, **MCNT**, **WIFI**, **OTA**, **SAVE**, **CANCEL**
 
 - Rotate: move focus (wrap); in edit mode change the focused value  
 - Short click: enter/exit field edit (yellow = focus, cyan = editing); on **SAVE** / **CANCEL** activate  
+- **SAVE** / **CANCEL**: rounded Confirm/Cancel buttons (tft-ui palette; yellow outline when focused)  
 - Hold **≥ 3 s** from Run/Edit: enter Settings  
 - Idle **10 s**: CANCEL  
 
@@ -80,6 +81,8 @@ Draft values apply live on the screen; EEPROM write only on **SAVE**.
 | LEAK (reach min after pump ON) | 5–40 s | 1 s | 10 |
 | WEAK (max pump ON; then OFF, control stays enabled) | 40–600 s | 1 s | 180 |
 | SENS (sensor full-scale) | 2.0–50.0 Atm | 0.1 Atm | 5.0 |
+| WIFI | ON/OFF | toggle | from `network.wifiEnabled` |
+| OTA (ArduinoOTA on STA) | ON/OFF | toggle | from `network.enableOtaOnNetwork` |
 
 ## Persistence & settings model
 

@@ -29,6 +29,7 @@ namespace {
     PressureSettings gSettings;
     PressureSettings gDraft;
     bool gDraftWifiEnabled = false;
+    bool gDraftOtaEnabled = false;
     SettingsFocus gFocus = SettingsFocus::Leak;
     bool gSettingsEditing = false;
     bool gPumpOn = false;
@@ -152,6 +153,7 @@ namespace {
         }
         gDraft = gSettings;
         gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
+        gDraftOtaEnabled = settingsManager->getSettings()->network.enableOtaOnNetwork;
         gFocus = SettingsFocus::Leak;
         gSettingsEditing = false;
         gMode = UiMode::Settings;
@@ -180,9 +182,11 @@ namespace {
 
         GlobalSettings *all = settingsManager->getSettings();
         const bool wifiChanged = gDraftWifiEnabled != all->network.wifiEnabled;
-        if (wifiChanged) {
+        const bool otaChanged = gDraftOtaEnabled != all->network.enableOtaOnNetwork;
+        if (wifiChanged || otaChanged) {
             all->network.wifiEnabled = gDraftWifiEnabled;
-            settingsManager->saveSetting(true);
+            all->network.enableOtaOnNetwork = gDraftOtaEnabled;
+            settingsManager->saveSetting(wifiChanged);
         }
 
         gSettingsEditing = false;
@@ -193,6 +197,7 @@ namespace {
     void applySettingsCancel() {
         gDraft = gSettings;
         gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
+        gDraftOtaEnabled = settingsManager->getSettings()->network.enableOtaOnNetwork;
         gSettingsEditing = false;
         gMode = UiMode::Run;
         gLastActivityMs = millis();
@@ -297,6 +302,9 @@ namespace {
             case SettingsFocus::WifiEnabled:
                 // Any encoder step toggles ON/OFF.
                 gDraftWifiEnabled = !gDraftWifiEnabled;
+                break;
+            case SettingsFocus::OtaEnabled:
+                gDraftOtaEnabled = !gDraftOtaEnabled;
                 break;
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
@@ -476,6 +484,7 @@ void setup() {
     gSettings = settingsManager->getSettings()->pressure;
     gDraft = gSettings;
     gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
+    gDraftOtaEnabled = settingsManager->getSettings()->network.enableOtaOnNetwork;
     PRESSURE.setSensorMaxMpa(gSettings.sensorMaxMpa);
     PRESSURE.setSensorVolts(gSettings.sensorMinVolts, gSettings.sensorMaxVolts);
     PRESSURE.setSamplesCount(gSettings.samplesCount);
@@ -612,6 +621,7 @@ void loop() {
         }
         ui.draft = gDraft;
         ui.draftWifiEnabled = gDraftWifiEnabled;
+        ui.draftOtaEnabled = gDraftOtaEnabled;
         ui.focus = gFocus;
         ui.settingsEditing = gSettingsEditing;
 

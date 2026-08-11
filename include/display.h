@@ -21,6 +21,7 @@ enum class SettingsFocus : uint8_t {
     MeasureIntervalMs,
     MeasurementsCount,
     WifiEnabled,
+    OtaEnabled,
     Save,
     Cancel,
     Count,
@@ -41,6 +42,7 @@ struct UiState {
     char macAddress[18] = {}; // "AA:BB:CC:DD:EE:FF"; used in AP mode
     PressureSettings draft{};
     bool draftWifiEnabled = false;
+    bool draftOtaEnabled = false;
     SettingsFocus focus = SettingsFocus::Leak;
     bool settingsEditing = false;
 };

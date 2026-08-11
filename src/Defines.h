@@ -34,5 +34,5 @@
 #define DEFAULT_MQTT_PRESSURE_UPDATE_DIFF_ATM 0.05f
 
 /** Firmware release label exposed in web UI and /statusApi */
-#define FIRMWARE_VERSION "1.0.1"
+#define FIRMWARE_VERSION "1.0.2"
 
