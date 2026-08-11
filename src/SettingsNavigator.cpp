@@ -235,7 +235,7 @@ String SettingsNavigator::getSettingByName(String origParamName) {
                            ? (showMin ? String((unsigned char)paramDescriptors[descriptorIndex]->minValue) : String(
                                     (unsigned char)paramDescriptors[descriptorIndex]->maxValue))
                            : String(*(unsigned char *)paramDescriptors[descriptorIndex]->valueReferenceForRead);
-                } else if (paramDescriptors[descriptorIndex]->paramType == IPv4){
+                } else if (paramDescriptors[descriptorIndex]->paramType == IPV4){
                     String ipAsString;
 
                     if (!showMin && !showMax){

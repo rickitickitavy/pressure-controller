@@ -30,8 +30,22 @@ namespace {
     PressureSettings gDraft;
     bool gDraftWifiEnabled = false;
     SettingsFocus gFocus = SettingsFocus::Leak;
+    bool gSettingsEditing = false;
     bool gPumpOn = false;
     bool gThresholdsDirty = false;
+
+    bool isSettingsActionFocus(SettingsFocus focus) {
+        return focus == SettingsFocus::Save || focus == SettingsFocus::Cancel;
+    }
+
+    void moveSettingsFocus(int steps) {
+        const int count = static_cast<int>(SettingsFocus::Count);
+        int idx = (static_cast<int>(gFocus) + steps) % count;
+        if (idx < 0) {
+            idx += count;
+        }
+        gFocus = static_cast<SettingsFocus>(idx);
+    }
 
     unsigned long gLastActivityMs = 0;
     unsigned long gPumpOnSinceMs = 0;
@@ -139,6 +153,7 @@ namespace {
         gDraft = gSettings;
         gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
         gFocus = SettingsFocus::Leak;
+        gSettingsEditing = false;
         gMode = UiMode::Settings;
         gLastActivityMs = millis();
     }
@@ -170,6 +185,7 @@ namespace {
             settingsManager->saveSetting(true);
         }
 
+        gSettingsEditing = false;
         gMode = UiMode::Run;
         gLastActivityMs = millis();
     }
@@ -177,6 +193,7 @@ namespace {
     void applySettingsCancel() {
         gDraft = gSettings;
         gDraftWifiEnabled = settingsManager->getSettings()->network.wifiEnabled;
+        gSettingsEditing = false;
         gMode = UiMode::Run;
         gLastActivityMs = millis();
     }
@@ -203,6 +220,11 @@ namespace {
             return;
         }
         gLastActivityMs = millis();
+
+        if (!gSettingsEditing) {
+            moveSettingsFocus(steps);
+            return;
+        }
 
         switch (gFocus) {
             case SettingsFocus::Leak: {
@@ -279,35 +301,29 @@ namespace {
             case SettingsFocus::Save:
             case SettingsFocus::Cancel:
             case SettingsFocus::Count:
-                // Buttons are navigated by short press only.
                 break;
         }
     }
 
     void handleSettingsButton() {
-        // 1s hold activates SAVE / CANCEL when selected.
-        if (Encoder::consumeHoldPress()) {
-            gLastActivityMs = millis();
-            if (gFocus == SettingsFocus::Save) {
-                applySettingsSave();
-                return;
-            }
-            if (gFocus == SettingsFocus::Cancel) {
-                applySettingsCancel();
-                return;
-            }
-        }
+        // 1s hold unused on Settings (SAVE/CANCEL use short click).
+        (void) Encoder::consumeHoldPress();
 
-        // Short press rolls over parameters and buttons.
         if (!Encoder::consumePress()) {
             return;
         }
         gLastActivityMs = millis();
-        const auto next = static_cast<uint8_t>(gFocus) + 1;
-        if (next >= static_cast<uint8_t>(SettingsFocus::Count)) {
-            gFocus = SettingsFocus::Leak;
-        } else {
-            gFocus = static_cast<SettingsFocus>(next);
+
+        if (gFocus == SettingsFocus::Save) {
+            applySettingsSave();
+            return;
+        }
+        if (gFocus == SettingsFocus::Cancel) {
+            applySettingsCancel();
+            return;
+        }
+        if (!isSettingsActionFocus(gFocus)) {
+            gSettingsEditing = !gSettingsEditing;
         }
     }
 
@@ -597,6 +613,7 @@ void loop() {
         ui.draft = gDraft;
         ui.draftWifiEnabled = gDraftWifiEnabled;
         ui.focus = gFocus;
+        ui.settingsEditing = gSettingsEditing;
 
         if (wifiReconnected) {
             Display::invalidateWifi();

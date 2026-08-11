@@ -1,0 +1,30 @@
+---
+description: Keep universal algorithms free of project-specific parameter/domain logic
+alwaysApply: true
+---
+
+# No project logic in universal algorithms
+
+Do not hardcode project-specific parameter names, domains, or special cases inside shared/universal code paths (e.g. `SettingsNavigator` get/save formatting, generic parsers, template processors).
+
+**Not allowed:** branching in a reusable algorithm on concrete project keys or units.
+
+```cpp
+// BAD — universal formatter knows project parameter names
+if (paramName == "pressure>sensorMinVolts" || paramName == "pressure>sensorMaxVolts") {
+    return String(value, 3);
+}
+return String(value, 2);
+```
+
+**Allowed:** express project needs as data/config on the descriptor or registration site; the algorithm stays generic.
+
+```cpp
+// GOOD — metadata on ParamDescriptor; algorithm uses it for any FLOAT
+return String(value, descriptor->decimalPlaces);
+
+// GOOD — project-specific choice only at registration
+new ParamDescriptor("pressure>sensorMinVolts", FLOAT, ..., 3);
+```
+
+Same idea elsewhere: extend the shared type/API with a neutral field or hook; configure it where project settings are declared. Do not grow `if (name == "...")` lists inside the shared path.
