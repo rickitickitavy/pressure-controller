@@ -42,6 +42,7 @@ struct UiState {
     PressureSettings draft{};
     bool draftWifiEnabled = false;
     SettingsFocus focus = SettingsFocus::Leak;
+    bool settingsEditing = false;
 };
 
 namespace Display {

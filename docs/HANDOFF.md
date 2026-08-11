@@ -66,12 +66,14 @@ When the pump turns **ON**:
 
 ### SETTINGS screen (LCD)
 
-Rows: **LEAK**, **WEAK**, **SENS**, **SAVE**, **CANCEL**
+Rows: **LEAK**, **WEAK**, **SENS**, **VMIN**, **VMAX**, **SAMP**, **INTV**, **MCNT**, **WIFI**, **SAVE**, **CANCEL**
 
-- Short press: cycle focus  
-- Rotate: change LEAK / WEAK / SENS  
-- Hold **1 s** on SAVE / CANCEL: activate  
+- Rotate: move focus (wrap); in edit mode change the focused value  
+- Short click: enter/exit field edit (yellow = focus, cyan = editing); on **SAVE** / **CANCEL** activate  
+- Hold **≥ 3 s** from Run/Edit: enter Settings  
 - Idle **10 s**: CANCEL  
+
+Draft values apply live on the screen; EEPROM write only on **SAVE**.
 
 | Setting | Range | Step | Default |
 |---------|-------|------|---------|
@@ -159,6 +161,10 @@ Libs (`platformio.ini`): Adafruit GFX / ST7789 / BusIO, AsyncTCP, ESPAsyncWebSer
 
 ## Build / flash
 
+Flash: **4 MB**. Partition scheme: **`min_spiffs`** (`board_build.partitions` in [`platformio.ini`](../platformio.ini)) — dual OTA app slots **0x1E0000** (~1.875 MB), LittleFS **0x20000** (128 KB). Default `0x140000` app slots are too small for current firmware.
+
+After changing the partition table, re-flash firmware **and** `uploadfs` (filesystem is wiped/resized).
+
 ```bash
 cd /home/dsporynkhin/Projects/cpp/home/presure-controller
 pio run
@@ -168,10 +174,6 @@ pio device monitor     # 115200
 ```
 
 USB CDC is enabled (`ARDUINO_USB_CDC_ON_BOOT`, `ARDUINO_USB_MODE`).
-
-## Known gaps / WIP
-
-- Temporary NDJSON debug logs (session `2ce4f1`) still in `display.cpp` / `main.cpp` — safe to remove after verification.
 
 ## Plan copies in this folder
 

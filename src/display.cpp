@@ -295,12 +295,16 @@ namespace {
         return fabsf(a - b) < eps;
     }
 
-    void drawSettingsRow(int index, const char *text, bool selected,
+    void drawSettingsRow(int index, const char *text, bool selected, bool editing,
                          uint16_t idleBg = ST77XX_BLACK) {
         const int y = settingsRowY(index);
         const int h = settingsRowH(index);
-        const uint16_t fg = selected ? ST77XX_BLACK : ST77XX_WHITE;
-        const uint16_t bg = selected ? ST77XX_YELLOW : idleBg;
+        uint16_t fg = ST77XX_WHITE;
+        uint16_t bg = idleBg;
+        if (selected) {
+            fg = ST77XX_BLACK;
+            bg = editing ? ST77XX_CYAN : ST77XX_YELLOW;
+        }
         drawBar(y, h, text, fg, bg, &FreeSansBold12pt7b);
     }
 
@@ -356,7 +360,9 @@ namespace {
         char buf[40];
         uint16_t idleBg = ST77XX_BLACK;
         formatSettingsRow(state, focus, buf, sizeof(buf), &idleBg);
-        drawSettingsRow(static_cast<int>(focus), buf, state.focus == focus, idleBg);
+        const bool selected = state.focus == focus;
+        const bool editing = selected && state.settingsEditing;
+        drawSettingsRow(static_cast<int>(focus), buf, selected, editing, idleBg);
     }
 
     void drawAllSettingsRows(const UiState &state) {
@@ -398,7 +404,7 @@ namespace {
             drawAllSettingsRows(cur);
             return;
         }
-        if (prev.focus != cur.focus) {
+        if (prev.focus != cur.focus || prev.settingsEditing != cur.settingsEditing) {
             paintSettingsRow(cur, prev.focus);
             paintSettingsRow(cur, cur.focus);
         }
@@ -448,7 +454,9 @@ namespace Display {
                 gHasLast = false;
             }
             const bool need =
-                    !gHasLast || gLast.focus != state.focus || draftChanged(gLast.draft, state.draft) ||
+                    !gHasLast || gLast.focus != state.focus ||
+                    gLast.settingsEditing != state.settingsEditing ||
+                    draftChanged(gLast.draft, state.draft) ||
                     gLast.draftWifiEnabled != state.draftWifiEnabled || gLast.mode != state.mode;
             if (need) {
                 drawSettingsIncremental(gLast, state, !gHasLast);
